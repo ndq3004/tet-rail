@@ -1,0 +1,8 @@
+{
+  "type": "https://tetrail.local/problems/validation-failed",
+  "title": "Request validation failed",
+  "status": 400,
+  "code": "VALIDATION_FAILED",
+  "correlation_id": "67e55044-10b1-426f-9247-bb680e5fe0c8",
+  "errors": { "date": ["Date must not be in the past."] }
+}

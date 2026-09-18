@@ -1,0 +1,10 @@
+{
+  "event_id": "b81d1d2e-1ad6-4fb0-a182-387b0d90011a",
+  "event_type": "SeatHeld.v1",
+  "version": 1,
+  "occurred_at": "2026-09-06T08:30:00Z",
+  "correlation_id": "67e55044-10b1-426f-9247-bb680e5fe0c8",
+  "causation_id": "30f61b29-f48d-4819-a303-bc15ee749f95",
+  "producer": "booking-engine",
+  "payload": {}
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Services/">
+    <Project Path="services/gateway/TetRail.Gateway.csproj" />
+    <Project Path="services/catalog/TetRail.Catalog.csproj" />
+    <Project Path="services/order-payment/TetRail.OrderPayment.csproj" />
+    <Project Path="services/ticketing/TetRail.Ticketing.csproj" />
+  </Folder>
+</Solution>
+

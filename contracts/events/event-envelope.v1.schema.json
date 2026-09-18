@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tetrail.local/contracts/events/event-envelope.v1.schema.json",
+  "title": "TetRail Event Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "version", "occurred_at", "correlation_id", "causation_id", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]+\\.v[1-9][0-9]*$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "correlation_id": { "type": "string", "format": "uuid" },
+    "causation_id": { "type": "string", "format": "uuid" },
+    "producer": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  }
+}
