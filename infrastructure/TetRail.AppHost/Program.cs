@@ -6,8 +6,9 @@ var catalog = builder.AddProject<Projects.TetRail_Catalog>("catalog")
     .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.TetRail_Gateway>("gateway")
-    .WithHttpEndpoint(name: "http-gateway")
-    .WithUrlForEndpoint("http-gateway", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
+    //.WithHttpsEndpoint(port: 51757, name: "https-gateway")
+    .WithHttpEndpoint(port: 52757, name: "http-gateway")
+    .WithUrlForEndpoint("https-gateway", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
     .WithReference(catalog)
     .WaitFor(catalog)
     .WithHttpHealthCheck("/health");

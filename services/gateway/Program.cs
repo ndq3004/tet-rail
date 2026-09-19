@@ -8,7 +8,8 @@ var catalogBaseUrl = builder.Configuration["services:catalog:http:0"] is not nul
     ? "https+http://catalog"
     : builder.Configuration["Catalog:BaseUrl"]
         ?? throw new InvalidOperationException("Catalog:BaseUrl is required.");
-var timeoutSeconds = builder.Configuration.GetValue("Catalog:SearchTimeoutSeconds", 5);
+var timeoutSeconds = builder.Configuration.GetValue("Catalog:SearchTimeoutSeconds", 1222);
+builder.Services.AddServiceDiscovery();
 builder.Services.AddHttpClient("catalog", client =>
 {
     client.BaseAddress = new Uri(catalogBaseUrl);
@@ -62,6 +63,24 @@ app.MapGet("/api/trips", async (HttpContext context, IHttpClientFactory clientFa
             code = "CATALOG_UNAVAILABLE",
             correlation_id = correlationId
         }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
+app.MapGet("/api/trips/{tripId}/seats", async (string tripId, HttpContext context, IHttpClientFactory clientFactory, CancellationToken cancellationToken) =>
+{
+    var correlationId = (Guid)context.Items["X-Correlation-ID"]!;
+    using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/trips/{tripId}/seats{context.Request.QueryString}");
+    request.Headers.TryAddWithoutValidation("X-Correlation-ID", correlationId.ToString());
+    try
+    {
+        using var response = await clientFactory.CreateClient("catalog").SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        return Results.Content(payload, response.Content.Headers.ContentType?.ToString() ?? MediaTypeNames.Application.Json, Encoding.UTF8, (int)response.StatusCode);
+    }
+    catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+    {
+        app.Logger.LogWarning(exception, "Catalog seat map proxy failed. CorrelationId={CorrelationId}", correlationId);
+        return Results.Json(new { type = "https://tetrail.local/problems/catalog-unavailable", title = "Seat map is temporarily unavailable", status = 503, code = "CATALOG_UNAVAILABLE", correlation_id = correlationId }, statusCode: 503);
     }
 });
 

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "TetRail.Gateway": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:54757;http://localhost:54759"
+    }
+  }
+}

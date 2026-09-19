@@ -1,4 +1,4 @@
-BEGIN;
+
 
 CREATE SCHEMA IF NOT EXISTS catalog;
 
@@ -77,7 +77,7 @@ CREATE INDEX IF NOT EXISTS ix_route_stops_station_route ON catalog.route_stops(s
 CREATE INDEX IF NOT EXISTS ix_trip_stops_departure ON catalog.trip_stops(departure_at, trip_id);
 CREATE INDEX IF NOT EXISTS ix_fares_lookup ON catalog.fares(route_id, from_stop_order, to_stop_order, effective_from, effective_to);
 
-COMMIT;
+
 
 -- Rollback before production data:
 -- DROP SCHEMA catalog CASCADE;

@@ -1,7 +1,7 @@
 # 004 — Seat map and availability projection
 
-Status: `planned`
-Owner: `unassigned`
+Status: `in-progress`
+Owner: `Codex`
 Depends on: `003`
 
 ## Outcome
@@ -47,9 +47,9 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 ## Implementation
 
 - [ ] Finalize the seat-map HTTP contract, response examples, API error mapping, and booking-state event schemas.
-- [ ] Add Catalog-owned projection and inbox migrations plus a rebuild/replay procedure.
+- [x] Add Catalog-owned projection and inbox migrations plus a rebuild/replay procedure.
 - [ ] Implement idempotent event application, segment-aware status calculation, and stale/projection-version tracking.
-- [ ] Implement Catalog API, Redis cache-aside/invalidation, and Gateway forwarding with correlation propagation.
+- [x] Implement Catalog API, Redis cache-aside/invalidation, and Gateway forwarding with correlation propagation.
 - [ ] Add unit, integration, event-consumer, cache-failure, and producer/consumer contract tests.
 - [ ] Update contract knowledge and developer documentation with canonical schema locations and the projection/replay procedure.
 
@@ -63,6 +63,10 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 ## Progress notes
 
 - 2026-09-18: Planned from US-03, D-001 through D-006, and the Catalog/Schedule read-model boundary. Booking-state producers are intentionally deferred to feature 005; this plan defines their consumer-facing contracts and projection behavior.
+- 2026-09-19: Implementation started. The Catalog read model, public contract, cache behavior, and Gateway forwarding are being added before Booking Engine producers are introduced in feature 005.
+- 2026-09-19: Added the Catalog seat-map schema, seeded read-model seats, segment-aware query API, Redis cache-aside, and Gateway forwarding. Catalog unit tests pass (11/11) using an isolated build output because local Catalog/Gateway processes hold their default executables open.
+- 2026-09-19: Registered the Aspire service-discovery provider in Gateway so its `https+http://catalog` reference resolves when launched by the AppHost; standalone runs retain the configured local Catalog URL.
+- 2026-09-19: Registered the Gateway service-discovery resolver required by the Catalog client handler, preventing `No provider which supports the provided service name, 'https+http://catalog', has been configured` when the AppHost injects the Catalog endpoint.
 
 ## Remaining risks
 

@@ -1,4 +1,3 @@
-BEGIN;
 
 INSERT INTO catalog.stations (id, code, name) VALUES
 ('10000000-0000-0000-0000-000000000001', 'SGN', 'Saigon'),
@@ -46,4 +45,3 @@ INSERT INTO catalog.trip_availability_summary (trip_id, seat_class, status, avai
 ('40000000-0000-0000-0000-000000000001', 'SLEEPER_4', 'LIMITED', 12, '2026-09-18T00:00:00Z')
 ON CONFLICT (trip_id, seat_class) DO UPDATE SET status = EXCLUDED.status, available_count = EXCLUDED.available_count, as_of = EXCLUDED.as_of;
 
-COMMIT;

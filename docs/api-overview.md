@@ -10,7 +10,7 @@ This is the quick reference for HTTP APIs across TetRail's five core services. I
 | Service | Runtime | Implemented endpoints | Planned business endpoints |
 |---|---|---:|---:|
 | Gateway & Traffic Control | .NET | 2 | 0 |
-| Identity, Catalog & Schedule | .NET | 2 | 1 |
+| Identity, Catalog & Schedule | .NET | 3 | 1 |
 | Booking Engine | Go | 1 | 3 |
 | Order & Payment | .NET | 1 | 4 |
 | Ticket, Notification & Reporting | .NET | 1 | 1 |
@@ -28,6 +28,12 @@ All service health checks return `200 OK` with `{ "service": "...", "status": "h
 | Booking Engine | `GET /health` | Booking Engine health check. | `200` |
 | Order & Payment | `GET /health` | Order & Payment health check. | `200` |
 | Ticket, Notification & Reporting | `GET /health` | Ticketing health check. | `200` |
+
+### Development-only internal operations
+
+| Service | Method and path | Purpose | Responses / notes |
+|---|---|---|---|
+| Catalog | `POST /internal/migrations/run` | Explicitly apply Catalog-owned embedded SQL migrations. | Registered only when Catalog runs in Development; not routed by Gateway or published as a public API. Returns applied and already-recorded migration names. |
 
 ### Trip-search notes
 
