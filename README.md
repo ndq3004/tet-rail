@@ -54,3 +54,5 @@ dotnet run --project infrastructure/TetRail.AppHost/TetRail.AppHost.csproj
 ```
 
 Aspire starts Gateway, Catalog, Order & Payment, Ticketing, and the Go Booking Engine. Gateway resolves Catalog through service discovery; PostgreSQL, Redis, Kafka, and MinIO continue to use the Compose endpoints and lifecycle.
+
+In the Aspire dashboard, open the **Swagger UI** link beside Gateway, Catalog, Order & Payment, or Ticketing to inspect and try that service's implemented endpoints. Swagger UI is local-development only. The Booking Engine does not yet publish an OpenAPI document, so it has no Swagger UI link.

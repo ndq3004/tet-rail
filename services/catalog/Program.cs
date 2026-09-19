@@ -19,8 +19,15 @@ builder.Services.AddSingleton(NpgsqlDataSource.Create(postgresConnection));
 builder.Services.AddSingleton<ITripSearchRepository, PostgresTripSearchRepository>();
 builder.Services.AddSingleton<ITripSearchCache>(_ => new RedisTripSearchCache(redisConnection));
 builder.Services.AddScoped<TripSearchService>();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "TetRail Catalog v1"));
+}
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.MapGet("/health", () => Results.Ok(new { service = "catalog", status = "healthy" }));

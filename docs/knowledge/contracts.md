@@ -2,6 +2,10 @@
 
 Primary sources: [`../product-brief.md`](../product-brief.md) and [`../architecture.md`](../architecture.md). This is a preliminary inventory and does not replace OpenAPI or AsyncAPI schemas when they are introduced.
 
+Quick reference: [`../api-overview.md`](../api-overview.md) separates implemented endpoints from approved but not-yet-implemented contracts across all services.
+
+In local Development runs, the four .NET services expose generated OpenAPI at `/openapi/v1.json` and Swagger UI at `/swagger`. The Aspire dashboard provides a Swagger UI link for each; the Go Booking Engine has no OpenAPI UI until it publishes an OpenAPI document.
+
 ## HTTP
 
 | Method/path | Core contract |

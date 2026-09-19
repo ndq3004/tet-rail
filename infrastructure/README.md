@@ -37,3 +37,5 @@ dotnet run --project infrastructure/TetRail.AppHost/TetRail.AppHost.csproj
 ```
 
 The Aspire dashboard shows Gateway, Catalog, Order & Payment, Ticketing, and Booking Engine. It does not replace Compose or manage PostgreSQL, Redis, Kafka, or MinIO.
+
+Gateway, Catalog, Order & Payment, and Ticketing each show a **Swagger UI** link in the dashboard. The link opens that service's development-only `/swagger` page; its generated document is available at `/openapi/v1.json`. Booking Engine remains health-only until it publishes an OpenAPI document.

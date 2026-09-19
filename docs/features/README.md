@@ -30,5 +30,7 @@ This directory is the single canonical location for feature implementation plans
 | 012 | Administration, reporting, and operations | US-10 | N/A | Service domain events |
 | 013 | Aspire local application orchestration | Foundation | done | 002 |
 | 014 | Customer booking web experience | UI foundation | done | 003, 004 |
+| 015 | API endpoint overview | Documentation | done | 003 |
+| 016 | Local Swagger UI | Foundation | in-progress | 013 |
 
 Update this catalog in the same change whenever a feature plan is added or its status changes.

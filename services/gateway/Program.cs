@@ -14,8 +14,15 @@ builder.Services.AddHttpClient("catalog", client =>
     client.BaseAddress = new Uri(catalogBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
 }).AddServiceDiscovery();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "TetRail Gateway v1"));
+}
+
 app.Use(async (context, next) =>
 {
     const string headerName = "X-Correlation-ID";

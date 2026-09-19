@@ -1,21 +1,25 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
 var catalog = builder.AddProject<Projects.TetRail_Catalog>("catalog")
-    .WithHttpEndpoint(name: "http")
+    .WithHttpEndpoint(name: "http-catalog")
+    .WithUrlForEndpoint("http-catalog", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
     .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.TetRail_Gateway>("gateway")
-    .WithHttpEndpoint(name: "http")
+    .WithHttpEndpoint(name: "http-gateway")
+    .WithUrlForEndpoint("http-gateway", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
     .WithReference(catalog)
     .WaitFor(catalog)
     .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.TetRail_OrderPayment>("order-payment")
-    .WithHttpEndpoint(name: "http")
+    .WithHttpEndpoint(name: "http-order-payment")
+    .WithUrlForEndpoint("http-order-payment", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
     .WithHttpHealthCheck("/health");
 
 builder.AddProject<Projects.TetRail_Ticketing>("ticketing")
-    .WithHttpEndpoint(name: "http")
+    .WithHttpEndpoint(name: "http-ticketing")
+    .WithUrlForEndpoint("http-ticketing", endpoint => new() { Url = "/swagger", DisplayText = "Swagger UI" })
     .WithHttpHealthCheck("/health");
 
 builder.AddExecutable("booking-engine", "go", "../../services/booking-engine")
