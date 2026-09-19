@@ -9,6 +9,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
 builder.Services.Configure<TripSearchOptions>(builder.Configuration.GetSection(TripSearchOptions.SectionName));
 builder.Services.Configure<SeatMapOptions>(builder.Configuration.GetSection(SeatMapOptions.SectionName));
+builder.Services.Configure<SeatProjectionKafkaOptions>(builder.Configuration.GetSection(SeatProjectionKafkaOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddMetrics();
 builder.Services.AddSingleton<TripSearchMetrics>();
@@ -26,6 +27,10 @@ builder.Services.AddScoped<TripSearchService>();
 builder.Services.AddSingleton<ISeatMapRepository, PostgresSeatMapRepository>();
 builder.Services.AddSingleton<ISeatMapCache>(_ => new RedisSeatMapCache(redisConnection));
 builder.Services.AddSingleton<ISeatProjectionEventApplier, PostgresSeatProjectionEventApplier>();
+builder.Services.AddSingleton<BookingStateEventParser>();
+builder.Services.AddSingleton<SeatProjectionEventProcessor>();
+builder.Services.AddSingleton<ISeatProjectionKafkaClient, ConfluentSeatProjectionKafkaClient>();
+builder.Services.AddHostedService<SeatProjectionKafkaConsumer>();
 builder.Services.AddScoped<SeatMapService>();
 builder.Services.AddOpenApi();
 

@@ -71,4 +71,4 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 
 ## Remaining risks
 
-- The exact Kafka topic names, retention/replay window, and producer rollout sequencing must be finalized with feature 005 before live event consumption is enabled.
+- Feature 005 finalized the `booking.seat-state.v1` topic and Catalog consumer group. Catalog migration/replay and a live Compose-Kafka integration check remain required before enabling the consumer in a shared environment.

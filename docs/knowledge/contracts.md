@@ -40,7 +40,7 @@ Published feature contracts:
 - `contracts/http/trip-search.v1.openapi.json`: `GET /api/v1/trips` owned by Catalog; Gateway exposes it as `GET /api/trips`.
 - `contracts/http/trip-search.v1.example.json`: successful response fixture including fare version and timestamped availability.
 - `contracts/http/seat-map.v1.openapi.json`: `GET /api/v1/trips/{tripId}/seats`, owned by Catalog; Gateway exposes it as `GET /api/trips/{tripId}/seats`.
-- `contracts/events/booking-seat-state.v1.schema.json`: Booking Engine `SeatHeld.v1`, `HoldExpired.v1`, and `HoldConfirmed.v1` inputs for the Catalog projection; events are deduplicated by `event_id` and ordered by `source_position` per seat segment.
+- `contracts/events/booking-seat-state.v1.schema.json`: Booking Engine `SeatHeld.v1`, `HoldExpired.v1`, and `HoldConfirmed.v1` inputs for the Catalog projection. They use topic `booking.seat-state.v1`, key `trip_id:seat_id`, and the Catalog injects Kafka partition offset as `source_position`; events are deduplicated by `event_id` and guarded by a per-seat-segment cursor.
 
 - When OpenAPI, AsyncAPI, or a schema registry is added, record its canonical path here.
 - Every contract change must update its producer, consumers, contract tests, and relevant feature plan.
