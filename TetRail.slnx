@@ -5,5 +5,10 @@
     <Project Path="services/order-payment/TetRail.OrderPayment.csproj" />
     <Project Path="services/ticketing/TetRail.Ticketing.csproj" />
   </Folder>
+  <Folder Name="/Infrastructure/">
+    <Project Path="infrastructure/TetRail.AppHost/TetRail.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/catalog/TetRail.Catalog.Tests.csproj" />
+  </Folder>
 </Solution>
-

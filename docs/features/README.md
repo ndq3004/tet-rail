@@ -18,8 +18,8 @@ This directory is the single canonical location for feature implementation plans
 | 000 | Agent rules and project knowledge base | Foundation | done | none |
 | 001 | Project skeleton | Foundation | done | 000 |
 | 002 | Local platform foundation | Foundation | done | 001 |
-| 003 | Trip search and fare discovery | US-02 | planned | Foundation |
-| 004 | Seat map and availability projection | US-03 | N/A | US-02 |
+| 003 | Trip search and fare discovery | US-02 | in-progress | Foundation |
+| 004 | Seat map and availability projection | US-03 | planned | US-02 |
 | 005 | Atomic time-limited seat holds | US-04 | N/A | US-03 |
 | 006 | Authentication and passenger management | US-01 | N/A | Foundation |
 | 007 | Order creation from an active hold | US-05 | N/A | US-01, US-04 |
@@ -28,5 +28,7 @@ This directory is the single canonical location for feature implementation plans
 | 010 | Electronic ticket issuance and delivery | US-08 | N/A | US-06 |
 | 011 | Peak traffic control and waiting room | US-09 | N/A | Complete vertical slice |
 | 012 | Administration, reporting, and operations | US-10 | N/A | Service domain events |
+| 013 | Aspire local application orchestration | Foundation | done | 002 |
+| 014 | Customer booking web experience | UI foundation | done | 003, 004 |
 
 Update this catalog in the same change whenever a feature plan is added or its status changes.

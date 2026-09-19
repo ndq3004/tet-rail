@@ -31,5 +31,10 @@ Canonical foundation schemas:
 - `contracts/http/common/api-error.v1.schema.json`
 - `contracts/events/event-envelope.v1.schema.json`
 
+Published feature contracts:
+
+- `contracts/http/trip-search.v1.openapi.json`: `GET /api/v1/trips` owned by Catalog; Gateway exposes it as `GET /api/trips`.
+- `contracts/http/trip-search.v1.example.json`: successful response fixture including fare version and timestamped availability.
+
 - When OpenAPI, AsyncAPI, or a schema registry is added, record its canonical path here.
 - Every contract change must update its producer, consumers, contract tests, and relevant feature plan.

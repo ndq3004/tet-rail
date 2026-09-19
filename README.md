@@ -33,7 +33,7 @@ cd services/booking-engine && go test ./...
 cd web && npm install && npm run build
 ```
 
-Each service currently exposes only `GET /health`. Business endpoints and infrastructure integrations are added through plans in `docs/features/`.
+Every service exposes `GET /health`. The Catalog service also owns versioned `GET /api/v1/trips`; the Gateway exposes the public `GET /api/trips` route.
 
 ## Local dependencies
 
@@ -43,3 +43,14 @@ docker compose --env-file infrastructure/compose/.env.example -f infrastructure/
 ```
 
 See `infrastructure/README.md` for stopping/resetting the stack and running Go tests through Docker when Go is not installed locally.
+
+## Local application orchestration
+
+Docker Compose remains responsible for the stateful local platform. Start it first, then launch all application processes and the development dashboard with Aspire:
+
+```text
+docker compose --env-file infrastructure/compose/.env.example -f infrastructure/compose/compose.yml up -d --wait
+dotnet run --project infrastructure/TetRail.AppHost/TetRail.AppHost.csproj
+```
+
+Aspire starts Gateway, Catalog, Order & Payment, Ticketing, and the Go Booking Engine. Gateway resolves Catalog through service discovery; PostgreSQL, Redis, Kafka, and MinIO continue to use the Compose endpoints and lifecycle.

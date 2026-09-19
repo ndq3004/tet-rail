@@ -2,5 +2,8 @@
   <PropertyGroup>
     <RootNamespace>TetRail.Catalog</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="9.0.3" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.41" />
+  </ItemGroup>
 </Project>
-

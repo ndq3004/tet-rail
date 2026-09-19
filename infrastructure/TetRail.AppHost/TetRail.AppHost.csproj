@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.2" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TetRail.AppHost</RootNamespace>
+    <IsAspireHost>true</IsAspireHost>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.5.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../services/catalog/TetRail.Catalog.csproj" />
+    <ProjectReference Include="../../services/gateway/TetRail.Gateway.csproj" />
+    <ProjectReference Include="../../services/order-payment/TetRail.OrderPayment.csproj" />
+    <ProjectReference Include="../../services/ticketing/TetRail.Ticketing.csproj" />
+  </ItemGroup>
+</Project>

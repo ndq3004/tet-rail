@@ -1,0 +1,21 @@
+{
+  "trips": [
+    {
+      "trip_id": "40000000-0000-0000-0000-000000000001",
+      "trip_number": "SE2-2027-02-05",
+      "from_station": { "code": "SGN", "name": "Saigon" },
+      "to_station": { "code": "HNO", "name": "Hanoi" },
+      "departure_at": "2027-02-05T00:10:00+07:00",
+      "arrival_at": "2027-02-06T09:00:00+07:00",
+      "duration_minutes": 1970,
+      "schedule_status": "SCHEDULED",
+      "fares": [
+        { "seat_class": "SOFT_SEAT", "price": 1250000, "currency": "VND", "fare_version": 1, "effective_at": "2026-09-01T00:00:00Z" }
+      ],
+      "availability": { "status": "AVAILABLE", "available_count": 96, "availability_as_of": "2026-09-18T00:00:00Z", "is_stale": true }
+    }
+  ],
+  "generated_at": "2026-09-18T12:00:00Z",
+  "cache_status": "MISS",
+  "data_version": "catalog-v1"
+}

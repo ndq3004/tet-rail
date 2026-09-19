@@ -19,7 +19,7 @@ Primary sources: [`../architecture.md`](../architecture.md) and [`../delivery-pl
 - Redis: rate limiting, idempotency/result cache, projections, and snapshots; it is not the sole correctness barrier.
 - MinIO/S3: ticket PDFs.
 - Observability: OpenTelemetry, Prometheus/Grafana, and structured logs.
-- Local/test: Docker Compose, Testcontainers, xUnit, Go testing/race/benchmarks, and k6.
+- Local/test: Docker Compose owns stateful dependencies; .NET Aspire orchestrates application processes and the local dashboard. Testcontainers, xUnit, Go testing/race/benchmarks, and k6 support verification.
 
 ## Non-negotiable boundaries
 

@@ -12,4 +12,9 @@ Foundation contracts shared by all features:
 - `http/common/api-error.v1.schema.json`: Problem Details-compatible error with a stable machine code and correlation ID.
 - `events/event-envelope.v1.schema.json`: common event identity, version, time and correlation metadata.
 
+Feature contracts:
+
+- `http/trip-search.v1.openapi.json`: versioned Catalog trip-search request, response, fare, and availability-projection contract.
+- `http/trip-search.v1.example.json`: successful trip-search response fixture.
+
 Concrete event schemas compose the envelope and narrow `event_type`, `version` and `payload`. Adjacent examples are contract-test fixtures.

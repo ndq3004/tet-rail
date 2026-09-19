@@ -19,4 +19,3 @@ func health(response http.ResponseWriter, _ *http.Request) {
 		"status":  "healthy",
 	})
 }
-

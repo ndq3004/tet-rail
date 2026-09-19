@@ -8,7 +8,10 @@ services:
       POSTGRES_PASSWORD: ${TETRAIL_POSTGRES_PASSWORD:-tetrail-local-only}
       POSTGRES_DB: ${TETRAIL_POSTGRES_DB:-tetrail}
     ports: ["${TETRAIL_POSTGRES_PORT:-5432}:5432"]
-    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    volumes:
+      - "postgres-data:/var/lib/postgresql/data"
+      - "../../services/catalog/Migrations/001_trip_search.sql:/docker-entrypoint-initdb.d/010-catalog-trip-search.sql:ro"
+      - "../../services/catalog/Migrations/002_development_seed.sql:/docker-entrypoint-initdb.d/020-catalog-development-seed.sql:ro"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s

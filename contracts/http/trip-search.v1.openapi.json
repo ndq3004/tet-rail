@@ -1,0 +1,87 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "TetRail Trip Search API", "version": "1.0.0" },
+  "paths": {
+    "/api/v1/trips": {
+      "get": {
+        "operationId": "searchTrips",
+        "summary": "Search scheduled trips and effective fares",
+        "parameters": [
+          { "name": "from", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 10 } },
+          { "name": "to", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 10 } },
+          { "name": "date", "in": "query", "required": true, "schema": { "type": "string", "format": "date" } },
+          { "name": "X-Correlation-ID", "in": "header", "required": false, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching trips. Availability is a timestamped best-effort projection and never guarantees hold success.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TripSearchResponse" } } }
+          },
+          "400": { "description": "Invalid search input", "content": { "application/json": { "schema": { "$ref": "./common/api-error.v1.schema.json" } } } },
+          "503": { "description": "Authoritative catalog data is unavailable", "content": { "application/json": { "schema": { "$ref": "./common/api-error.v1.schema.json" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TripSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["trips", "generated_at", "cache_status", "data_version"],
+        "properties": {
+          "trips": { "type": "array", "items": { "$ref": "#/components/schemas/Trip" } },
+          "generated_at": { "type": "string", "format": "date-time" },
+          "cache_status": { "type": "string", "enum": ["HIT", "MISS", "FALLBACK"] },
+          "data_version": { "type": "string" }
+        }
+      },
+      "Trip": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["trip_id", "trip_number", "from_station", "to_station", "departure_at", "arrival_at", "duration_minutes", "schedule_status", "fares", "availability"],
+        "properties": {
+          "trip_id": { "type": "string", "format": "uuid" },
+          "trip_number": { "type": "string" },
+          "from_station": { "$ref": "#/components/schemas/Station" },
+          "to_station": { "$ref": "#/components/schemas/Station" },
+          "departure_at": { "type": "string", "format": "date-time" },
+          "arrival_at": { "type": "string", "format": "date-time" },
+          "duration_minutes": { "type": "integer", "minimum": 0 },
+          "schedule_status": { "type": "string" },
+          "fares": { "type": "array", "items": { "$ref": "#/components/schemas/Fare" } },
+          "availability": { "$ref": "#/components/schemas/Availability" }
+        }
+      },
+      "Station": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "name"],
+        "properties": { "code": { "type": "string" }, "name": { "type": "string" } }
+      },
+      "Fare": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seat_class", "price", "currency", "fare_version", "effective_at"],
+        "properties": {
+          "seat_class": { "type": "string" },
+          "price": { "type": "number", "minimum": 0 },
+          "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+          "fare_version": { "type": "integer", "minimum": 1 },
+          "effective_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Availability": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "available_count", "availability_as_of", "is_stale"],
+        "properties": {
+          "status": { "type": "string", "enum": ["AVAILABLE", "LIMITED", "SOLD_OUT", "UNKNOWN", "MIXED"] },
+          "available_count": { "type": ["integer", "null"], "minimum": 0 },
+          "availability_as_of": { "type": "string", "format": "date-time" },
+          "is_stale": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
