@@ -46,9 +46,9 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 
 ## Implementation
 
-- [ ] Finalize the seat-map HTTP contract, response examples, API error mapping, and booking-state event schemas.
+- [x] Finalize the seat-map HTTP contract, response examples, API error mapping, and booking-state event schemas.
 - [x] Add Catalog-owned projection and inbox migrations plus a rebuild/replay procedure.
-- [ ] Implement idempotent event application, segment-aware status calculation, and stale/projection-version tracking.
+- [x] Implement idempotent event application, segment-aware status calculation, and stale/projection-version tracking.
 - [x] Implement Catalog API, Redis cache-aside/invalidation, and Gateway forwarding with correlation propagation.
 - [ ] Add unit, integration, event-consumer, cache-failure, and producer/consumer contract tests.
 - [ ] Update contract knowledge and developer documentation with canonical schema locations and the projection/replay procedure.
@@ -67,6 +67,7 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 - 2026-09-19: Added the Catalog seat-map schema, seeded read-model seats, segment-aware query API, Redis cache-aside, and Gateway forwarding. Catalog unit tests pass (11/11) using an isolated build output because local Catalog/Gateway processes hold their default executables open.
 - 2026-09-19: Registered the Aspire service-discovery provider in Gateway so its `https+http://catalog` reference resolves when launched by the AppHost; standalone runs retain the configured local Catalog URL.
 - 2026-09-19: Registered the Gateway service-discovery resolver required by the Catalog client handler, preventing `No provider which supports the provided service name, 'https+http://catalog', has been configured` when the AppHost injects the Catalog endpoint.
+- 2026-09-19: Added the idempotent Catalog projection-event applier and v1 HTTP/event contracts. Event application writes an inbox record and per-seat-segment cursor transactionally; a `SOLD` cursor cannot be downgraded by delayed hold/expiry events. Catalog tests pass (13/13) and contract JSON parses successfully. Kafka consumer wiring remains deferred until feature 005 owns the Booking Engine producer and topic configuration.
 
 ## Remaining risks
 

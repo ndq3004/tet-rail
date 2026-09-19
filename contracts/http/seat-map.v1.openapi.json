@@ -1,0 +1,16 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail Seat Map API", "version": "v1" },
+  "paths": {
+    "/api/v1/trips/{tripId}/seats": {
+      "get": {
+        "parameters": [
+          { "name": "tripId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "from", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 10 } },
+          { "name": "to", "in": "query", "required": true, "schema": { "type": "string", "maxLength": 10 } }
+        ],
+        "responses": { "200": { "description": "Timestamped availability projection; it is not a hold guarantee." }, "400": { "description": "api-error.v1 validation response" }, "503": { "description": "api-error.v1 catalog unavailable response" } }
+      }
+    }
+  }
+}

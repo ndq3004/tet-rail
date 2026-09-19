@@ -25,6 +25,7 @@ builder.Services.AddSingleton<ITripSearchCache>(_ => new RedisTripSearchCache(re
 builder.Services.AddScoped<TripSearchService>();
 builder.Services.AddSingleton<ISeatMapRepository, PostgresSeatMapRepository>();
 builder.Services.AddSingleton<ISeatMapCache>(_ => new RedisSeatMapCache(redisConnection));
+builder.Services.AddSingleton<ISeatProjectionEventApplier, PostgresSeatProjectionEventApplier>();
 builder.Services.AddScoped<SeatMapService>();
 builder.Services.AddOpenApi();
 
