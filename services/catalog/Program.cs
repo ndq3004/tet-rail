@@ -1,5 +1,8 @@
 using Npgsql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using System.Security.Claims;
 using TetRail.Catalog;
 using TetRail.Catalog.Identity;
 using TetRail.Catalog.Migrations;
@@ -21,6 +24,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     options.TokenValidationParameters.RoleClaimType = cognito.GroupClaimType;
 });
 builder.Services.AddAuthorization();
+builder.Services.AddDataProtection().SetApplicationName("TetRail.Catalog");
 builder.Services.Configure<SeatMapOptions>(builder.Configuration.GetSection(SeatMapOptions.SectionName));
 builder.Services.Configure<SeatProjectionKafkaOptions>(builder.Configuration.GetSection(SeatProjectionKafkaOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -43,6 +47,7 @@ builder.Services.AddSingleton<ISeatProjectionEventApplier, PostgresSeatProjectio
 builder.Services.AddSingleton<BookingStateEventParser>();
 builder.Services.AddSingleton<SeatProjectionEventProcessor>();
 builder.Services.AddSingleton<ISeatProjectionKafkaClient, ConfluentSeatProjectionKafkaClient>();
+builder.Services.AddSingleton<IPassengerRepository, PostgresPassengerRepository>();
 builder.Services.AddHostedService<SeatProjectionKafkaConsumer>();
 builder.Services.AddScoped<SeatMapService>();
 builder.Services.AddOpenApi();
@@ -59,6 +64,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { service = "catalog", status = "healthy" }));
+
+app.MapGet("/api/v1/identity/me", [Authorize] (ClaimsPrincipal user) => Results.Ok(new CurrentIdentity(user.FindFirstValue("sub")!, user.FindAll(cognito.GroupClaimType).SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray())));
+app.MapGet("/api/v1/passengers", [Authorize] async (ClaimsPrincipal user, IPassengerRepository repository, CancellationToken ct) => Results.Ok(await repository.ListAsync(user.FindFirstValue("sub")!, ct)));
+app.MapGet("/api/v1/passengers/{id:guid}", [Authorize] async (Guid id, ClaimsPrincipal user, IPassengerRepository repository, CancellationToken ct) => (await repository.GetAsync(user.FindFirstValue("sub")!, id, ct)) is { } passenger ? Results.Ok(passenger) : Results.NotFound());
+app.MapPost("/api/v1/passengers", [Authorize] async (PassengerInput input, ClaimsPrincipal user, IPassengerRepository repository, IDataProtectionProvider protection, HttpContext context, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(input.FullName) || input.FullName.Length > 200 || input.DateOfBirth is null || input.DateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow) || (input.NationalId?.Length > 32)) return Results.BadRequest();
+    var normalized = string.IsNullOrWhiteSpace(input.NationalId) ? null : new string(input.NationalId.Where(char.IsLetterOrDigit).ToArray());
+    if (normalized is { Length: < 6 }) return Results.BadRequest();
+    var record = await repository.CreateAsync(user.FindFirstValue("sub")!, input with { FullName = input.FullName.Trim() }, normalized is null ? null : protection.CreateProtector("national-id.v1").Protect(normalized), normalized is null ? null : normalized[^4..], (Guid)context.Items[CorrelationIdMiddleware.HeaderName]!, ct);
+    return Results.Created($"/api/v1/passengers/{record.PassengerId}", record);
+});
 
 if (app.Environment.IsDevelopment())
 {

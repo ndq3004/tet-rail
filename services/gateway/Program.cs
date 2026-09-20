@@ -1,9 +1,14 @@
 using System.Net.Mime;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 var builder = WebApplication.CreateBuilder(args);
+var cognitoAuthority = builder.Configuration["Cognito:Authority"];
+var cognitoAudience = builder.Configuration["Cognito:Audience"];
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options => { options.Authority = cognitoAuthority; options.Audience = cognitoAudience; });
+builder.Services.AddAuthorization();
 var catalogBaseUrl = builder.Configuration["services:catalog:http:0"] is not null
     ? "https+http://catalog"
     : builder.Configuration["Catalog:BaseUrl"]
@@ -35,6 +40,8 @@ app.Use(async (context, next) =>
     context.Response.Headers[headerName] = correlationId.ToString();
     await next();
 });
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { service = "gateway", status = "healthy" }));
 
