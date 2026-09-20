@@ -1,5 +1,7 @@
 using Npgsql;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using TetRail.Catalog;
+using TetRail.Catalog.Identity;
 using TetRail.Catalog.Migrations;
 using TetRail.Catalog.TripSearch;
 using TetRail.Catalog.SeatMap;
@@ -8,6 +10,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
 builder.Services.Configure<TripSearchOptions>(builder.Configuration.GetSection(TripSearchOptions.SectionName));
+builder.Services.Configure<CognitoOptions>(builder.Configuration.GetSection(CognitoOptions.SectionName));
+var cognito = builder.Configuration.GetSection(CognitoOptions.SectionName).Get<CognitoOptions>() ?? new CognitoOptions();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+{
+    options.Authority = cognito.Authority;
+    options.Audience = cognito.Audience;
+    options.TokenValidationParameters.ValidIssuer = cognito.Authority;
+    options.TokenValidationParameters.ValidAudience = cognito.Audience;
+    options.TokenValidationParameters.RoleClaimType = cognito.GroupClaimType;
+});
+builder.Services.AddAuthorization();
 builder.Services.Configure<SeatMapOptions>(builder.Configuration.GetSection(SeatMapOptions.SectionName));
 builder.Services.Configure<SeatProjectionKafkaOptions>(builder.Configuration.GetSection(SeatProjectionKafkaOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -42,6 +55,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { service = "catalog", status = "healthy" }));
 

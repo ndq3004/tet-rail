@@ -1,0 +1,52 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "TetRail Identity and Passengers API", "version": "1.0.0" },
+  "paths": {
+    "/api/v1/identity/me": {
+      "get": {
+        "operationId": "getCurrentIdentity",
+        "security": [{ "cognitoBearer": [] }],
+        "responses": {
+          "200": { "description": "Authenticated identity", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CurrentIdentity" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" }
+        }
+      }
+    },
+    "/api/v1/passengers": {
+      "get": {
+        "operationId": "listPassengers", "security": [{ "cognitoBearer": [] }],
+        "responses": {
+          "200": { "description": "Owned passenger profiles", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Passenger" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" }
+        }
+      },
+      "post": {
+        "operationId": "createPassenger", "security": [{ "cognitoBearer": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PassengerInput" } } } },
+        "responses": {
+          "201": { "description": "Created passenger", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Passenger" } } } },
+          "400": { "$ref": "#/components/responses/Validation" }, "401": { "$ref": "#/components/responses/Unauthenticated" }
+        }
+      }
+    },
+    "/api/v1/passengers/{passengerId}": {
+      "get": { "operationId": "getPassenger", "security": [{ "cognitoBearer": [] }], "parameters": [{ "$ref": "#/components/parameters/PassengerId" }], "responses": { "200": { "description": "Owned passenger", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Passenger" } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "patch": { "operationId": "updatePassenger", "security": [{ "cognitoBearer": [] }], "parameters": [{ "$ref": "#/components/parameters/PassengerId" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PassengerInput" } } } }, "responses": { "200": { "description": "Updated passenger", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Passenger" } } } }, "400": { "$ref": "#/components/responses/Validation" }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "delete": { "operationId": "deletePassenger", "security": [{ "cognitoBearer": [] }], "parameters": [{ "$ref": "#/components/parameters/PassengerId" }], "responses": { "204": { "description": "Deleted" }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    }
+  },
+  "components": {
+    "securitySchemes": { "cognitoBearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" } },
+    "parameters": { "PassengerId": { "name": "passengerId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } } },
+    "responses": {
+      "Validation": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "./common/api-error.v1.schema.json" } } } },
+      "Unauthenticated": { "description": "Missing or invalid Cognito token", "content": { "application/json": { "schema": { "$ref": "./common/api-error.v1.schema.json" } } } },
+      "NotFound": { "description": "Passenger does not exist or is not owned by the caller", "content": { "application/json": { "schema": { "$ref": "./common/api-error.v1.schema.json" } } } }
+    },
+    "schemas": {
+      "CurrentIdentity": { "type": "object", "additionalProperties": false, "required": ["subject", "roles"], "properties": { "subject": { "type": "string", "minLength": 1, "maxLength": 255 }, "roles": { "type": "array", "items": { "type": "string", "enum": ["CUSTOMER", "ADMIN"] } } } },
+      "PassengerInput": { "type": "object", "additionalProperties": false, "required": ["full_name", "date_of_birth"], "properties": { "full_name": { "type": "string", "minLength": 1, "maxLength": 200 }, "date_of_birth": { "type": "string", "format": "date" }, "national_id": { "type": "string", "minLength": 6, "maxLength": 32 } } },
+      "Passenger": { "type": "object", "additionalProperties": false, "required": ["passenger_id", "full_name", "date_of_birth", "created_at", "updated_at"], "properties": { "passenger_id": { "type": "string", "format": "uuid" }, "full_name": { "type": "string" }, "date_of_birth": { "type": "string", "format": "date" }, "national_id_masked": { "type": ["string", "null"] }, "created_at": { "type": "string", "format": "date-time" }, "updated_at": { "type": "string", "format": "date-time" } } }
+    }
+  }
+}

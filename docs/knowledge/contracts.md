@@ -20,6 +20,8 @@ In local Development runs, the four .NET services expose generated OpenAPI at `/
 | `POST /api/payment-webhooks/simulator` | Receives signed, deduplicated simulator webhooks. |
 | `GET /api/orders/{orderId}` | Reads order/payment status. |
 | `GET /api/tickets/{ticketId}` | Reads authorized ticket metadata or resources. |
+| `GET /api/identity/me` | Returns the authenticated Cognito subject and application roles. |
+| `GET/POST/PATCH/DELETE /api/passengers[/{passengerId}]` | Authenticated customer passenger-profile operations; Catalog enforces ownership. |
 
 ## Events
 
@@ -40,6 +42,7 @@ Published feature contracts:
 - `contracts/http/trip-search.v1.openapi.json`: `GET /api/v1/trips` owned by Catalog; Gateway exposes it as `GET /api/trips`.
 - `contracts/http/trip-search.v1.example.json`: successful response fixture including fare version and timestamped availability.
 - `contracts/http/seat-map.v1.openapi.json`: `GET /api/v1/trips/{tripId}/seats`, owned by Catalog; Gateway exposes it as `GET /api/trips/{tripId}/seats`.
+- `contracts/http/identity-passengers.v1.openapi.json`: authenticated Cognito identity and customer-owned passenger-profile operations, owned by Catalog; Gateway exposes the public `/api` equivalents.
 - `contracts/events/booking-seat-state.v1.schema.json`: Booking Engine `SeatHeld.v1`, `HoldExpired.v1`, and `HoldConfirmed.v1` inputs for the Catalog projection. They use topic `booking.seat-state.v1`, key `trip_id:seat_id`, and the Catalog injects Kafka partition offset as `source_position`; events are deduplicated by `event_id` and guarded by a per-seat-segment cursor.
 - Booking emits these events from its PostgreSQL transactional outbox only after the corresponding hold lifecycle transaction commits. The local Compose `kafka-init` job provisions the source topic and Catalog DLQ with seven-day retention.
 

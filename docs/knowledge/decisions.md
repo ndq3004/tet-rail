@@ -15,12 +15,12 @@ Primary source: [`../architecture.md`](../architecture.md), section "Accepted ar
 | D-007 | Reporting uses a separate read model. | Reporting queries must not slow the transactional path. |
 | D-008 | The payment simulator keeps a provider-like webhook contract. | It supports success, failure, timeout, delayed success, and duplicate callbacks. |
 | D-009 | One million commands per second means durable command acknowledgements across the cluster. | Load reports must separately show completion lag and workload assumptions. |
+| D-010 | AWS Cognito User Pools is the MVP OIDC provider; Gateway and Catalog validate Cognito JWTs directly. | The MVP does not operate OpenIddict or Keycloak. Cognito issuer, audience, JWKS, groups-to-role mapping, refresh, and revocation are provider configuration concerns. |
 
 ## Open questions
 
 - What official burst duration and completion SLO will the acceptance test use?
 - Will the final inventory shard key use carriage or seat bucket, and what is the bucket split threshold?
-- Will the MVP use OpenIddict or Keycloak as its OIDC provider?
 - What production refund policy will replace the simulator's `PAYMENT_REVIEW` handling?
 
 When an answer is confirmed, convert it into a decision with an ID. If it has broad impact, create an ADR and link it from the table above.
