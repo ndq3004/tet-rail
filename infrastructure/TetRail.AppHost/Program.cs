@@ -26,6 +26,8 @@ builder.AddProject<Projects.TetRail_Ticketing>("ticketing")
 builder.AddExecutable("booking-engine", "go", "../../services/booking-engine")
     .WithArgs("run", "./cmd/api")
     .WithEnvironment("HTTP_ADDRESS", ":8080")
+    .WithEnvironment("DATABASE_URL", "postgres://tetrail:tetrail-local-only@localhost:5432/tetrail?search_path=booking")
+    .WithEnvironment("KAFKA_BROKERS", "localhost:9092")
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http", isProxied: false)
     .WithHttpHealthCheck("/health");
 
