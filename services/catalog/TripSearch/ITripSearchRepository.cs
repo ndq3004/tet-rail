@@ -2,6 +2,7 @@ namespace TetRail.Catalog.TripSearch;
 
 public interface ITripSearchRepository
 {
+    Task<string> GetDataVersionAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<TripSearchItem>> SearchAsync(TripSearchQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken);
 }
 

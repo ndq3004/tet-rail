@@ -148,7 +148,7 @@ app.MapGet("/api/v1/trips", async (
             correlationId,
             Errors: result.Errors), statusCode: StatusCodes.Status400BadRequest);
     }
-    catch (NpgsqlException exception)
+    catch (Exception exception) when (exception is NpgsqlException or TripSearchDataUnavailableException)
     {
         app.Logger.LogError(exception, "Trip search PostgreSQL operation failed. CorrelationId={CorrelationId}", correlationId);
         return Results.Json(new ApiError(

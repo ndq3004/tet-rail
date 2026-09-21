@@ -4,6 +4,7 @@ namespace TetRail.Catalog.TripSearch;
 
 public sealed class PostgresTripSearchRepository(NpgsqlDataSource dataSource) : ITripSearchRepository
 {
+    private const string DataVersionSql = "SELECT 'catalog-' || version FROM catalog.trip_search_data_version WHERE singleton = true;";
     private const string SearchSql = """
         SELECT t.id, t.trip_number, t.status,
                origin.code, origin.name, destination.code, destination.name,
@@ -51,8 +52,12 @@ public sealed class PostgresTripSearchRepository(NpgsqlDataSource dataSource) : 
                 reader.GetFieldValue<DateTimeOffset>(13),
                 reader.IsDBNull(14) ? "UNKNOWN" : reader.GetString(14),
                 reader.IsDBNull(15) ? null : reader.GetInt32(15),
-                reader.IsDBNull(16) ? now : reader.GetFieldValue<DateTimeOffset>(16)));
+                reader.IsDBNull(16) ? now : reader.GetFieldValue<DateTimeOffset>(16),
+                reader.IsDBNull(14) || reader.IsDBNull(16)));
         }
+
+        if (rows.Any(row => row.AvailabilityMissing))
+            throw new TripSearchDataUnavailableException("Availability projection is unavailable for one or more sellable seat classes.");
 
         return rows.GroupBy(row => row.TripId).Select(group =>
         {
@@ -71,10 +76,17 @@ public sealed class PostgresTripSearchRepository(NpgsqlDataSource dataSource) : 
         }).OrderBy(item => item.DepartureAt).ToArray();
     }
 
+    public async Task<string> GetDataVersionAsync(CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(DataVersionSql);
+        return (string?)await command.ExecuteScalarAsync(cancellationToken)
+            ?? throw new TripSearchDataUnavailableException("Trip-search data version is unavailable.");
+    }
+
     private sealed record Row(
         Guid TripId, string TripNumber, string ScheduleStatus,
         string FromCode, string FromName, string ToCode, string ToName,
         DateTimeOffset DepartureAt, DateTimeOffset ArrivalAt,
         string SeatClass, decimal Price, string Currency, long FareVersion, DateTimeOffset FareEffectiveAt,
-        string AvailabilityStatus, int? AvailableCount, DateTimeOffset AvailabilityAsOf);
+        string AvailabilityStatus, int? AvailableCount, DateTimeOffset AvailabilityAsOf, bool AvailabilityMissing);
 }

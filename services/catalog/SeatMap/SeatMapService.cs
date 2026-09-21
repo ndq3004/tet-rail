@@ -19,15 +19,19 @@ public sealed class SeatMapService(
             return SeatMapResult.Invalid(errors);
 
         var cachePrefix = $"seat-map:v1:{query!.TripId:N}:{query.From}:{query.To}:";
-        try
+        var dataVersion = await repository.GetDataVersionAsync(query.TripId, cancellationToken);
+        if (dataVersion is not null)
         {
-            var cached = await cache.GetAsync(cachePrefix + "latest", cancellationToken);
-            if (cached is not null)
-                return SeatMapResult.Success(cached with { CacheStatus = "HIT", AvailabilityNotice = Notice });
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Seat map cache read failed; falling back to PostgreSQL.");
+            try
+            {
+                var cached = await cache.GetAsync(cachePrefix + dataVersion, cancellationToken);
+                if (cached is not null)
+                    return SeatMapResult.Success(RefreshStaleness(cached, timeProvider.GetUtcNow()) with { CacheStatus = "HIT", AvailabilityNotice = Notice });
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Seat map cache read failed; falling back to PostgreSQL.");
+            }
         }
 
         var snapshot = await repository.GetAsync(query, timeProvider.GetUtcNow(), TimeSpan.FromSeconds(settings.StaleAfterSeconds), cancellationToken);
@@ -38,7 +42,6 @@ public sealed class SeatMapService(
         try
         {
             await cache.SetAsync(cachePrefix + snapshot.DataVersion, response, TimeSpan.FromSeconds(settings.CacheTtlSeconds), cancellationToken);
-            await cache.SetAsync(cachePrefix + "latest", response, TimeSpan.FromSeconds(settings.CacheTtlSeconds), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -47,6 +50,11 @@ public sealed class SeatMapService(
         }
         return SeatMapResult.Success(response);
     }
+
+    private SeatMapResponse RefreshStaleness(SeatMapResponse response, DateTimeOffset now) => response with
+    {
+        IsStale = now - response.AvailabilityAsOf > TimeSpan.FromSeconds(settings.StaleAfterSeconds)
+    };
 
     private static Dictionary<string, string[]> Validate(string? tripId, string? from, string? to, out SeatMapQuery? query)
     {

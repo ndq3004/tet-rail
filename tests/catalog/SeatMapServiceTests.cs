@@ -48,6 +48,15 @@ public sealed class SeatMapServiceTests
         Assert.Equal(0, repository.CallCount);
     }
 
+    [Fact]
+    public async Task GetAsync_recalculates_staleness_for_a_versioned_cached_projection()
+    {
+        var cached = CreateResponse() with { AvailabilityAsOf = Now.AddMinutes(-3), IsStale = false };
+        var result = await CreateService(new StubRepository(null), new StubCache { Value = cached }).GetAsync(TripId.ToString(), "SGN", "HNO", CancellationToken.None);
+
+        Assert.True(result.Response!.IsStale);
+    }
+
     private static SeatMapService CreateService(ISeatMapRepository repository, ISeatMapCache cache) => new(repository, cache, new FixedTimeProvider(Now), Options.Create(new SeatMapOptions()), NullLogger<SeatMapService>.Instance);
 
     private static SeatMapResponse CreateResponse() => new(TripId, new StationSummary("SGN", "Saigon"), new StationSummary("HNO", "Hanoi"), [new SeatMapSeat(Guid.NewGuid(), "1A", Guid.NewGuid(), "1", "SOFT_SEAT", "WINDOW", "SOLD"), new SeatMapSeat(Guid.NewGuid(), "1B", Guid.NewGuid(), "1", "SOFT_SEAT", "AISLE", "HELD")], Now, 3, false, string.Empty, "MISS");
@@ -55,6 +64,7 @@ public sealed class SeatMapServiceTests
     private sealed class StubRepository(SeatMapSnapshot? value) : ISeatMapRepository
     {
         public int CallCount { get; private set; }
+        public Task<long?> GetDataVersionAsync(Guid tripId, CancellationToken cancellationToken) => Task.FromResult<long?>(value?.DataVersion ?? 7);
         public Task<SeatMapSnapshot?> GetAsync(SeatMapQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken) { CallCount++; return Task.FromResult(value); }
     }
     private sealed class StubCache : ISeatMapCache

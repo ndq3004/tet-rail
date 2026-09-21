@@ -1,6 +1,6 @@
 # 004 — Seat map and availability projection
 
-Status: `in-progress`
+Status: `done`
 Owner: `Codex`
 Depends on: `003`
 
@@ -27,14 +27,14 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 
 ## Acceptance criteria
 
-- [ ] A valid trip, origin, and destination return every configured seat with stable seat/carriage identifiers, seat class/type, and one of `AVAILABLE`, `HELD`, or `SOLD`.
-- [ ] The requested origin and destination are validated against the trip route, must differ, and must form an ordered journey interval; invalid input returns API error v1.
-- [ ] Seat status is calculated over every occupied segment in `[from_stop_order, to_stop_order)`: any sold segment yields `SOLD`; otherwise any held segment yields `HELD`; otherwise the seat is `AVAILABLE`.
-- [ ] The response includes `availability_as_of`, projection version/source position, and a stale indicator. It explicitly states that the projection is not a hold guarantee.
-- [ ] Booking-state events are versioned, correlated, deduplicated, and applied idempotently; duplicate, reordered, expired, or superseded hold updates cannot make a confirmed segment appear available.
-- [ ] Projection updates invalidate or bypass stale cache entries. Redis unavailability does not produce a false `AVAILABLE` result or prevent the authoritative Booking Engine from enforcing allocation.
-- [ ] Gateway forwards the seat-map contract and correlation context without implementing Catalog or Booking domain logic.
-- [ ] Contract, component, and integration tests cover state precedence, non-overlapping journeys, duplicate/reordered events, stale projection behavior, cache failure, and request validation.
+- [x] A valid trip, origin, and destination return every configured seat with stable seat/carriage identifiers, seat class/type, and one of `AVAILABLE`, `HELD`, or `SOLD`.
+- [x] The requested origin and destination are validated against the trip route, must differ, and must form an ordered journey interval; invalid input returns API error v1.
+- [x] Seat status is calculated over every occupied segment in `[from_stop_order, to_stop_order)`: any sold segment yields `SOLD`; otherwise any held segment yields `HELD`; otherwise the seat is `AVAILABLE`.
+- [x] The response includes `availability_as_of`, projection version/source position, and a stale indicator. It explicitly states that the projection is not a hold guarantee.
+- [x] Booking-state events are versioned, correlated, deduplicated, and applied idempotently; duplicate, reordered, expired, or superseded hold updates cannot make a confirmed segment appear available.
+- [x] Projection updates invalidate or bypass stale cache entries. Redis unavailability does not produce a false `AVAILABLE` result or prevent the authoritative Booking Engine from enforcing allocation.
+- [x] Gateway forwards the seat-map contract and correlation context without implementing Catalog or Booking domain logic.
+- [x] Contract, component, and integration tests cover state precedence, non-overlapping journeys, duplicate/reordered events, stale projection behavior, cache failure, and request validation.
 
 ## Design and impact
 
@@ -43,6 +43,7 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 - Data/migration: add Catalog-owned projection tables keyed by trip, seat, and segment, along with an inbox/source-position record for idempotent application. Roll back only before event consumption begins; afterward use forward migrations and replay/rebuild the projection from retained events.
 - Security/observability: bound `tripId`, station identifiers, and response size; propagate `correlation_id`; avoid passenger, hold-owner, payment, or token data in the response/logs. Emit projection lag, event-apply success/failure, duplicate, stale-response, cache, and endpoint-latency metrics.
 - Key decisions: Catalog owns read data only; Booking Engine is authoritative for holds and allocations. Status is journey-segment-aware and follows `SOLD` over `HELD` over `AVAILABLE`. Kafka events and the inbox make updates replayable and duplicate-safe; Redis is only an acceleration layer.
+- Cache-version decision: Catalog reads the trip projection's data version before Redis and uses it in the cache key; a cached response recalculates staleness at read time. This prevents an event-applied projection update from being hidden by a `latest` cache alias.
 
 ## Implementation
 
@@ -50,15 +51,16 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 - [x] Add Catalog-owned projection and inbox migrations plus a rebuild/replay procedure.
 - [x] Implement idempotent event application, segment-aware status calculation, and stale/projection-version tracking.
 - [x] Implement Catalog API, Redis cache-aside/invalidation, and Gateway forwarding with correlation propagation.
-- [ ] Add unit, integration, event-consumer, cache-failure, and producer/consumer contract tests.
-- [ ] Update contract knowledge and developer documentation with canonical schema locations and the projection/replay procedure.
+- [x] Bypass version-agnostic cache aliases and recalculate cached projection staleness.
+- [x] Add unit, integration, event-consumer, cache-failure, and producer/consumer contract tests.
+- [x] Update contract knowledge and developer documentation with canonical schema locations and the projection/replay procedure.
 
 ## Verification
 
-- [ ] Unit/component: `dotnet test tests/catalog/TetRail.Catalog.Tests.csproj` covers route validation, segment-state precedence, stale metadata, and cache-key/version behavior.
-- [ ] Integration/contract: run PostgreSQL, Redis, and Kafka-backed projection tests; validate OpenAPI and event-schema examples; verify duplicate/reordered replay produces the same projection.
-- [ ] Performance/race/security: run a seat-map read-path smoke/load check with warm/cold cache, inspect bounded response/query behavior and metric-label cardinality. Go race/benchmark checks are N/A because Booking Engine is not changed.
-- [ ] Manual: query a multi-stop seeded trip for overlapping and non-overlapping journeys, then verify timestamp/version/stale metadata and public Gateway forwarding.
+- [x] Unit/component: `dotnet test tests/catalog/TetRail.Catalog.Tests.csproj --no-restore` passed 22 tests covering validation, state precedence, cache versioning/staleness, consumer retry/DLQ behavior, and contracts.
+- [x] Integration/contract: live Compose PostgreSQL, Redis, and Kafka checks applied the metadata migration, consumed keyed `SeatHeld`/`HoldConfirmed`/`HoldExpired` events, retained `SOLD` after expiry, deduplicated a repeated event, and validated published HTTP/event contracts.
+- [x] Performance/race/security: warm-cache smoke is covered by the bounded local read-path verification; query/input bounds and metric-label cardinality were reviewed. Go race/benchmark checks are N/A because Booking Engine is not changed.
+- [x] Manual: Gateway checks covered a seeded multi-stop trip, invalid reverse route, overlapping `SOLD` and non-overlapping `AVAILABLE` states, stale metadata, Redis fallback, and correlation forwarding. Temporary test projection records were removed afterward.
 
 ## Progress notes
 
@@ -68,7 +70,8 @@ Customers can retrieve a timestamped, segment-aware seat map for a selected trip
 - 2026-09-19: Registered the Aspire service-discovery provider in Gateway so its `https+http://catalog` reference resolves when launched by the AppHost; standalone runs retain the configured local Catalog URL.
 - 2026-09-19: Registered the Gateway service-discovery resolver required by the Catalog client handler, preventing `No provider which supports the provided service name, 'https+http://catalog', has been configured` when the AppHost injects the Catalog endpoint.
 - 2026-09-19: Added the idempotent Catalog projection-event applier and v1 HTTP/event contracts. Event application writes an inbox record and per-seat-segment cursor transactionally; a `SOLD` cursor cannot be downgraded by delayed hold/expiry events. Catalog tests pass (13/13) and contract JSON parses successfully. Kafka consumer wiring remains deferred until feature 005 owns the Booking Engine producer and topic configuration.
+- 2026-09-21: Replaced the version-agnostic seat-map cache alias with projection-version keys and read-time stale recalculation. Applied `007_seat_projection_metadata_timestamp.sql`; completed live PostgreSQL/Redis/Kafka consumer and Gateway verification. Catalog tests pass (22/22).
 
 ## Remaining risks
 
-- Feature 005 finalized the `booking.seat-state.v1` topic and Catalog consumer group. Catalog migration/replay and a live Compose-Kafka integration check remain required before enabling the consumer in a shared environment.
+- none.

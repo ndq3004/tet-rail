@@ -39,13 +39,13 @@ public sealed class TripSearchServiceTests
         Assert.Equal("HNO", repository.LastQuery?.To);
         Assert.Equal("MISS", result.Response?.CacheStatus);
         Assert.Single(result.Response!.Trips);
-        Assert.Contains(":SGN:HNO:2027-02-05:", cache.LastKey);
+        Assert.Contains(":SGN:HNO:2027-02-05:catalog-7", cache.LastKey);
     }
 
     [Fact]
     public async Task SearchAsync_returns_cached_result_without_querying_repository()
     {
-        var cached = new TripSearchResponse([CreateTrip()], Now, "MISS", "catalog-v1");
+        var cached = new TripSearchResponse([CreateTrip()], Now, "MISS", "catalog-7");
         var repository = new StubRepository([]);
         var service = CreateService(repository, new StubCache { Value = cached });
 
@@ -54,6 +54,19 @@ public sealed class TripSearchServiceTests
         Assert.True(result.IsValid);
         Assert.Equal("HIT", result.Response?.CacheStatus);
         Assert.Equal(0, repository.CallCount);
+    }
+
+    [Fact]
+    public async Task SearchAsync_uses_the_current_data_version_in_the_cache_key_and_marks_old_availability_stale()
+    {
+        var oldAvailability = CreateTrip() with { Availability = new AvailabilitySummary("AVAILABLE", 96, Now.AddMinutes(-3), false) };
+        var cached = new TripSearchResponse([oldAvailability], Now, "MISS", "catalog-7");
+        var service = CreateService(new StubRepository([]), new StubCache { Value = cached });
+
+        var result = await service.SearchAsync("SGN", "HNO", "2027-02-05", CancellationToken.None);
+
+        Assert.Equal("HIT", result.Response?.CacheStatus);
+        Assert.True(result.Response!.Trips.Single().Availability.IsStale);
     }
 
     [Fact]
@@ -97,6 +110,8 @@ public sealed class TripSearchServiceTests
     {
         public int CallCount { get; private set; }
         public TripSearchQuery? LastQuery { get; private set; }
+
+        public Task<string> GetDataVersionAsync(CancellationToken cancellationToken) => Task.FromResult("catalog-7");
 
         public Task<IReadOnlyList<TripSearchItem>> SearchAsync(TripSearchQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken)
         {

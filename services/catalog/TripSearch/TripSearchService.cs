@@ -23,13 +23,16 @@ public sealed class TripSearchService(
             return TripSearchResult.Invalid(errors);
         }
 
-        var cacheKey = $"trip-search:v1:{query!.From}:{query.To}:{query.Date:yyyy-MM-dd}:catalog-v1";
+        var dataVersion = await repository.GetDataVersionAsync(cancellationToken);
+        var cacheKey = $"trip-search:v1:{query!.From}:{query.To}:{query.Date:yyyy-MM-dd}:{dataVersion}";
         try
         {
             var cached = await cache.GetAsync(cacheKey, cancellationToken);
             if (cached is not null)
             {
+                cached = RefreshStaleness(cached, timeProvider.GetUtcNow());
                 metrics.RecordCache("hit");
+                if (cached.Trips.Any(trip => trip.Availability.IsStale)) metrics.RecordCache("stale");
                 metrics.RecordRequest("success", Stopwatch.GetElapsedTime(started).TotalMilliseconds);
                 return TripSearchResult.Success(cached with { CacheStatus = "HIT" });
             }
@@ -42,8 +45,17 @@ public sealed class TripSearchService(
         }
 
         var now = timeProvider.GetUtcNow();
-        var trips = await repository.SearchAsync(query, now, TimeSpan.FromSeconds(settings.AvailabilityStaleAfterSeconds), cancellationToken);
-        var response = new TripSearchResponse(trips, now, "MISS", "catalog-v1");
+        IReadOnlyList<TripSearchItem> trips;
+        try
+        {
+            trips = await repository.SearchAsync(query, now, TimeSpan.FromSeconds(settings.AvailabilityStaleAfterSeconds), cancellationToken);
+        }
+        catch
+        {
+            metrics.RecordRequest("error", Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            throw;
+        }
+        var response = new TripSearchResponse(trips, now, "MISS", dataVersion);
 
         try
         {
@@ -59,6 +71,14 @@ public sealed class TripSearchService(
         metrics.RecordRequest("success", Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return TripSearchResult.Success(response);
     }
+
+    private TripSearchResponse RefreshStaleness(TripSearchResponse response, DateTimeOffset now) => response with
+    {
+        Trips = response.Trips.Select(trip => trip with
+        {
+            Availability = trip.Availability with { IsStale = now - trip.Availability.AsOf > TimeSpan.FromSeconds(settings.AvailabilityStaleAfterSeconds) }
+        }).ToArray()
+    };
 
     private static Dictionary<string, string[]> Validate(string? from, string? to, string? date, out TripSearchQuery? query)
     {

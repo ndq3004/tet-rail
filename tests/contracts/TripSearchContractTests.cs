@@ -16,6 +16,7 @@ public sealed class TripSearchContractTests
         var required = response.GetProperty("required").EnumerateArray().Select(value => value.GetString()).ToArray();
         Assert.Contains("generated_at", required);
         Assert.Contains("cache_status", required);
+        Assert.Contains("data_version", required);
 
         var availability = document.RootElement.GetProperty("components").GetProperty("schemas").GetProperty("Availability");
         var availabilityRequired = availability.GetProperty("required").EnumerateArray().Select(value => value.GetString()).ToArray();

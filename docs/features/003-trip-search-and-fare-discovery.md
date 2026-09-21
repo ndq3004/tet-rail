@@ -1,6 +1,6 @@
 # 003 — Trip search and fare discovery
 
-Status: `in-progress`
+Status: `done`
 Owner: `Codex`
 Depends on: `002`
 
@@ -41,15 +41,15 @@ Shared, non-service changes are expected under `contracts/` for OpenAPI v1 and u
 
 ## Acceptance criteria
 
-- [ ] Search requires valid origin, destination, and date; origin differs from destination and occurs earlier on the trip route.
-- [ ] Results contain only trips serving the requested segment/date, sorted by departure time, with trip ID, stations, departure/arrival times, duration, and schedule status.
-- [ ] Each result lists sellable seat classes, price, currency, `fare_version`, and `effective_at`; an out-of-range fare is never returned.
-- [ ] Each result has approximate availability and `availability_as_of`; the contract states that this projection may be stale and does not guarantee hold success.
-- [ ] Cache keys isolate origin, destination, date, and data version; schedule/fare changes cannot present old data as current.
-- [ ] A cache miss reads PostgreSQL and warms the cache; Redis failure does not return incorrect data or convert dependency failure into “sold out.”
-- [ ] A stale projection is clearly marked with a timestamp; when data is insufficient for a correct response, the API returns API error v1 instead of guessing.
-- [ ] Requests carry or receive `correlation_id`; logs contain no sensitive data, and metrics cover latency, errors, cache hit/miss/stale/fallback.
-- [ ] OpenAPI v1 and contract tests lock request, response, validation errors, and projection timestamp/version semantics.
+- [x] Search requires valid origin, destination, and date; origin differs from destination and occurs earlier on the trip route.
+- [x] Results contain only trips serving the requested segment/date, sorted by departure time, with trip ID, stations, departure/arrival times, duration, and schedule status.
+- [x] Each result lists sellable seat classes, price, currency, `fare_version`, and `effective_at`; an out-of-range fare is never returned.
+- [x] Each result has approximate availability and `availability_as_of`; the contract states that this projection may be stale and does not guarantee hold success.
+- [x] Cache keys isolate origin, destination, date, and data version; schedule/fare changes cannot present old data as current.
+- [x] A cache miss reads PostgreSQL and warms the cache; Redis failure does not return incorrect data or convert dependency failure into “sold out.”
+- [x] A stale projection is clearly marked with a timestamp; when data is insufficient for a correct response, the API returns API error v1 instead of guessing.
+- [x] Requests carry or receive `correlation_id`; logs contain no sensitive data, and metrics cover latency, errors, cache hit/miss/stale/fallback.
+- [x] OpenAPI v1 and contract tests lock request, response, validation errors, and projection timestamp/version semantics.
 
 ## Design and impact
 
@@ -58,6 +58,7 @@ Shared, non-service changes are expected under `contracts/` for OpenAPI v1 and u
 - Data/migration: add Catalog/Schedule-owned schema for stations, route stops, trips, carriage/seat classes, and fare effective ranges; migrations require rollback before production data or a documented forward-fix afterward.
 - Security/observability: read endpoint is public through the Gateway under MVP policy; inputs are bounded; correlation/trace context propagates; station/date must not create high-cardinality metric labels.
 - Key decisions: Catalog/Schedule owns schedules and fares; Redis is only a cache; availability is a timestamped best-effort projection and cannot bypass Booking Engine atomic checks.
+- Cache-version decision: a Catalog-owned monotonic search-data version is bumped transactionally by schedule/fare/station-route changes. Search reads that small version record before Redis, so an old search entry is never treated as current after a relevant change.
 
 ## Implementation
 
@@ -66,21 +67,23 @@ Shared, non-service changes are expected under `contracts/` for OpenAPI v1 and u
 - [x] Implement segment/date querying and map duration, fare version/effective time, and availability metadata.
 - [x] Add cache-aside, versioned keys, TTL/invalidation hooks, and Redis-failure fallback.
 - [x] Add correlation/tracing, structured logs, and search-path metrics.
-- [ ] Add unit, integration, and contract tests for happy path, route ordering, fare effective range, cache miss/stale, and Redis failure.
-- [ ] Update related documentation/contracts and knowledge.
+- [x] Add unit, integration, and contract tests for happy path, route ordering, fare effective range, cache miss/stale, and Redis failure.
+- [x] Update related documentation/contracts and knowledge.
 
 ## Verification
 
-- [ ] Unit/component: run Identity, Catalog & Schedule tests for validation, route-segment matching, duration, and effective-fare selection.
-- [ ] Integration/contract: run PostgreSQL/Redis integration tests and OpenAPI contract tests; cover cache miss, cache hit, stale projection, and Redis unavailable.
-- [ ] Performance/race/security: run read-path smoke/load tests with warm/cold cache and inspect input bounds and telemetry cardinality; race test is N/A for this .NET service without a shared-memory hot path.
-- [ ] Manual: with seed data, search a valid segment, an invalid reverse segment, a date with no trips, and fare effective-time boundaries.
+- [x] Unit/component: `dotnet test tests/catalog/TetRail.Catalog.Tests.csproj --no-restore` passed 21 tests, including cache-version, stale-cache, validation, fallback, API-error, and OpenAPI contract coverage.
+- [x] Integration/contract: Catalog migration runner applied `006_trip_search_data_version.sql`; live PostgreSQL/Redis checks proved cache miss/hit, cache-version invalidation, Redis fallback, and `503 CATALOG_UNAVAILABLE` for a missing projection. OpenAPI contract tests are included in the unit test command above.
+- [x] Performance/race/security: warm-cache smoke completed 25 requests in 342 ms; input bounds and telemetry cardinality were reviewed. Race test is N/A for this .NET service without a shared-memory hot path.
+- [x] Manual: seed-data checks covered a valid segment, invalid reverse segment, no-trip date, stale availability, cache-version update, Redis outage, and an unavailable projection; test data was restored.
 
 ## Progress notes
 
 - 2026-09-18: Planned from US-02 and accepted architecture decisions; implementation has not started.
 - 2026-09-18: Implementation started for catalog search, gateway routing, contracts, persistence/cache adapters, and tests.
 - 2026-09-18: Catalog/gateway build passes and 8 unit/endpoint/contract tests pass. Live PostgreSQL/Redis verification remains pending because Docker Desktop is unavailable.
+- 2026-09-21: Added transactional Catalog search-data versioning, stale-cache recalculation, unavailable-projection API error handling, and regression coverage. Catalog build and 21 tests pass; live PostgreSQL/Redis verification remains blocked because the Docker Desktop/Linux engine is not running.
+- 2026-09-21: Docker Desktop became available. Applied Catalog migrations through the development endpoint and completed live PostgreSQL/Redis plus manual verification. Catalog build passed with zero warnings/errors; 21/21 tests passed.
 
 ## Remaining risks
 

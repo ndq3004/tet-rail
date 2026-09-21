@@ -5,6 +5,14 @@ namespace TetRail.Catalog.SeatMap;
 
 public sealed class PostgresSeatMapRepository(NpgsqlDataSource dataSource) : ISeatMapRepository
 {
+    public async Task<long?> GetDataVersionAsync(Guid tripId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("SELECT data_version FROM catalog.seat_projection_metadata WHERE trip_id = @tripId;");
+        command.Parameters.AddWithValue("tripId", tripId);
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is null ? null : (long)result;
+    }
+
     public async Task<SeatMapSnapshot?> GetAsync(SeatMapQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -30,7 +38,7 @@ public sealed class PostgresSeatMapRepository(NpgsqlDataSource dataSource) : ISe
             SELECT s.id, s.seat_number, c.id, c.carriage_number, c.seat_class, s.seat_type,
               CASE WHEN bool_or(p.status = 'SOLD') THEN 'SOLD'
                    WHEN bool_or(p.status = 'HELD') THEN 'HELD' ELSE 'AVAILABLE' END AS status,
-              max(p.updated_at), coalesce(max(p.projection_version), 0), coalesce(max(m.data_version), 1)
+              max(p.updated_at), coalesce(max(p.projection_version), 0), coalesce(max(m.data_version), 1), max(m.updated_at)
             FROM catalog.trip_seats ts
             JOIN catalog.seats s ON s.id = ts.seat_id
             JOIN catalog.carriages c ON c.id = s.carriage_id
@@ -47,6 +55,7 @@ public sealed class PostgresSeatMapRepository(NpgsqlDataSource dataSource) : ISe
         seatsCommand.Parameters.AddWithValue("toOrder", stops[1].Order);
         var seats = new List<SeatMapSeat>();
         DateTimeOffset? asOf = null;
+        DateTimeOffset? metadataAsOf = null;
         long version = 0;
         long dataVersion = 1;
         await using (var reader = await seatsCommand.ExecuteReaderAsync(cancellationToken))
@@ -57,10 +66,11 @@ public sealed class PostgresSeatMapRepository(NpgsqlDataSource dataSource) : ISe
                 if (!reader.IsDBNull(7)) asOf = !asOf.HasValue || reader.GetFieldValue<DateTimeOffset>(7) > asOf ? reader.GetFieldValue<DateTimeOffset>(7) : asOf;
                 version = Math.Max(version, reader.GetInt64(8));
                 dataVersion = Math.Max(dataVersion, reader.GetInt64(9));
+                if (!reader.IsDBNull(10)) metadataAsOf = reader.GetFieldValue<DateTimeOffset>(10);
             }
         }
         if (seats.Count == 0) return null;
-        var projectionAsOf = asOf ?? now;
+        var projectionAsOf = metadataAsOf ?? asOf ?? now;
         var response = new SeatMapResponse(query.TripId, stops[0].Station, stops[1].Station, seats, projectionAsOf, version, now - projectionAsOf > staleAfter, string.Empty, "MISS");
         return new SeatMapSnapshot(response, dataVersion);
     }

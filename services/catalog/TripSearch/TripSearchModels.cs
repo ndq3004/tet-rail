@@ -52,3 +52,5 @@ public sealed record TripSearchResult(bool IsValid, TripSearchResponse? Response
     public static TripSearchResult Invalid(IReadOnlyDictionary<string, string[]> errors) => new(false, null, errors);
     private static readonly IReadOnlyDictionary<string, string[]> EmptyErrors = new Dictionary<string, string[]>();
 }
+
+public sealed class TripSearchDataUnavailableException(string message) : Exception(message);

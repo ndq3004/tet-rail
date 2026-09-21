@@ -43,6 +43,20 @@ public sealed class TripSearchEndpointTests : IClassFixture<TripSearchEndpointTe
     }
 
     [Fact]
+    public async Task Search_returns_api_error_v1_when_availability_data_is_insufficient()
+    {
+        using var factory = new UnavailableCatalogFactory();
+        using var unavailableClient = factory.CreateClient();
+
+        using var response = await unavailableClient.GetAsync("/api/v1/trips?from=SGN&to=HNO&date=2027-02-05");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("CATALOG_UNAVAILABLE", error?.Code);
+        Assert.NotEqual(Guid.Empty, error?.CorrelationId);
+    }
+
+    [Fact]
     public async Task Passenger_routes_require_authentication_and_return_api_error_v1()
     {
         using var response = await client.GetAsync("/api/v1/passengers");
@@ -81,10 +95,31 @@ public sealed class TripSearchEndpointTests : IClassFixture<TripSearchEndpointTe
         }
     }
 
+    public sealed class UnavailableCatalogFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ITripSearchRepository>();
+                services.AddSingleton<ITripSearchRepository, UnavailableRepository>();
+            });
+        }
+    }
+
     private sealed class EmptyRepository : ITripSearchRepository
     {
+        public Task<string> GetDataVersionAsync(CancellationToken cancellationToken) => Task.FromResult("catalog-1");
         public Task<IReadOnlyList<TripSearchItem>> SearchAsync(TripSearchQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<TripSearchItem>>([]);
+    }
+
+    private sealed class UnavailableRepository : ITripSearchRepository
+    {
+        public Task<string> GetDataVersionAsync(CancellationToken cancellationToken) => Task.FromResult("catalog-1");
+        public Task<IReadOnlyList<TripSearchItem>> SearchAsync(TripSearchQuery query, DateTimeOffset now, TimeSpan staleAfter, CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<TripSearchItem>>(new TripSearchDataUnavailableException("Projection unavailable."));
     }
 
     private sealed class EmptyCache : ITripSearchCache

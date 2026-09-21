@@ -18,8 +18,8 @@ This directory is the single canonical location for feature implementation plans
 | 000 | Agent rules and project knowledge base | Foundation | done | none |
 | 001 | Project skeleton | Foundation | done | 000 |
 | 002 | Local platform foundation | Foundation | done | 001 |
-| 003 | Trip search and fare discovery | US-02 | in-progress | Foundation |
-| 004 | Seat map and availability projection | US-03 | planned | US-02 |
+| 003 | Trip search and fare discovery | US-02 | done | Foundation |
+| 004 | Seat map and availability projection | US-03 | done | US-02 |
 | 005 | Atomic time-limited seat holds | US-04 | in-progress | US-03 |
 | 006 | Authentication and passenger management | US-01 | in-progress | Foundation |
 | 007 | Order creation from an active hold | US-05 | N/A | US-01, US-04 |

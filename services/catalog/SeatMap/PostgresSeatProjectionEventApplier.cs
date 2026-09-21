@@ -55,11 +55,14 @@ public sealed class PostgresSeatProjectionEventApplier(NpgsqlDataSource dataSour
         if (appliedAny)
         {
             const string metadataSql = """
-                INSERT INTO catalog.seat_projection_metadata(trip_id, data_version) VALUES (@tripId, 1)
-                ON CONFLICT (trip_id) DO UPDATE SET data_version = catalog.seat_projection_metadata.data_version + 1;
+                INSERT INTO catalog.seat_projection_metadata(trip_id, data_version, updated_at) VALUES (@tripId, 1, @occurredAt)
+                ON CONFLICT (trip_id) DO UPDATE SET
+                  data_version = catalog.seat_projection_metadata.data_version + 1,
+                  updated_at = EXCLUDED.updated_at;
                 """;
             await using var metadata = new NpgsqlCommand(metadataSql, connection, transaction);
             metadata.Parameters.AddWithValue("tripId", stateEvent.TripId);
+            metadata.Parameters.AddWithValue("occurredAt", stateEvent.OccurredAt);
             await metadata.ExecuteNonQueryAsync(cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
