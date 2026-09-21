@@ -48,6 +48,7 @@ Developers can inspect the local Kafka broker, topics, records, and consumer gro
 
 - Kafka UI is intentionally a local-development tool.
 - 2026-09-19: Compose config validation passed. The rendered configuration contains the `kafka-ui` service, `kafka:9092` bootstrap server, and the host port `8080`; `git diff --check` passed.
+- 2026-09-20: Changed the default host port to `8082` to avoid the Booking Engine's AppHost endpoint on `8080`.
 
 ## Remaining risks
 

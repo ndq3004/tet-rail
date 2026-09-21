@@ -13,6 +13,8 @@ secrets/
 **/obj/
 artifacts/
 .artifacts/
+.test-output
+.data-protection-keys/
 TestResults/
 *.user
 *.suo
@@ -65,4 +67,3 @@ logs/
 *.temp
 *.swp
 *~
-

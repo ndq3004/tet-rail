@@ -41,7 +41,21 @@ public sealed class SeatProjectionKafkaConsumerTests
         Assert.Equal(["apply", "apply", "dlq:apply-failed", "commit"], client.Operations);
     }
 
-    private static SeatProjectionKafkaConsumer CreateConsumer(FakeKafkaClient client, ISeatProjectionEventApplier applier)
+    [Fact]
+    public async Task StartAsync_does_not_block_while_waiting_for_a_kafka_record()
+    {
+        using var stopping = new CancellationTokenSource();
+        var client = new BlockingKafkaClient();
+        var consumer = CreateConsumer(client, new FakeApplier([]));
+
+        var start = consumer.StartAsync(stopping.Token);
+
+        await start.WaitAsync(TimeSpan.FromSeconds(1));
+        stopping.Cancel();
+        await consumer.StopAsync(CancellationToken.None);
+    }
+
+    private static SeatProjectionKafkaConsumer CreateConsumer(ISeatProjectionKafkaClient client, ISeatProjectionEventApplier applier)
     {
         var options = Options.Create(new SeatProjectionKafkaOptions { MaxDeliveryAttempts = 2, RetryBaseDelayMilliseconds = 1 });
         var processor = new SeatProjectionEventProcessor(new BookingStateEventParser(), applier, client, options, NullLogger<SeatProjectionEventProcessor>.Instance);
@@ -59,6 +73,19 @@ public sealed class SeatProjectionKafkaConsumerTests
         public KafkaSeatProjectionRecord? Consume(CancellationToken cancellationToken) { var result = _record; _record = null; return result; }
         public Task PublishDeadLetterAsync(KafkaSeatProjectionRecord record, string reason, CancellationToken cancellationToken) { Operations.Add($"dlq:{reason}"); return Task.CompletedTask; }
         public void Commit(KafkaSeatProjectionRecord record) => Operations.Add("commit");
+        public void Dispose() { }
+    }
+
+    private sealed class BlockingKafkaClient : ISeatProjectionKafkaClient
+    {
+        public KafkaSeatProjectionRecord? Consume(CancellationToken cancellationToken)
+        {
+            cancellationToken.WaitHandle.WaitOne();
+            return null;
+        }
+
+        public Task PublishDeadLetterAsync(KafkaSeatProjectionRecord record, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void Commit(KafkaSeatProjectionRecord record) { }
         public void Dispose() { }
     }
 

@@ -81,6 +81,7 @@ public sealed class SeatProjectionKafkaConsumer(
             try
             {
                 await ConsumeOneAsync(stoppingToken);
+
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception exception)
@@ -91,9 +92,15 @@ public sealed class SeatProjectionKafkaConsumer(
         }
     }
 
+    /// <summary>
+    /// Run below command with powershell to test the consumer:
+    /// '40000000-0000-0000-0000-000000000001:70000000-0000-0000-0000-000000000001|{"event_id":"90000000-0000-0000-0000-000000000201","event_type":"SeatHeld.v1","version":1,"occurred_at":"2026-09-20T14:00:00Z","correlation_id":"90000000-0000-0000-0000-000000000202","causation_id":"90000000-0000-0000-0000-000000000203","payload":{"trip_id":"40000000-0000-0000-0000-000000000001","seat_id":"70000000-0000-0000-0000-000000000001","segment_indices":[1,2]}}' | docker exec -i tetrail-kafka-1 /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic booking.seat-state.v1 --property parse.key=true --property key.separator="|"
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task ConsumeOneAsync(CancellationToken cancellationToken)
     {
-        var record = client.Consume(cancellationToken);
+        var record = await Task.Run(() => client.Consume(cancellationToken), cancellationToken);
         if (record is null) return;
         await processor.ProcessAsync(record, cancellationToken);
         client.Commit(record);

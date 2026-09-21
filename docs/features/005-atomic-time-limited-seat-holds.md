@@ -47,10 +47,12 @@ The Booking Engine publishes durable, versioned seat-state events for successful
 - [x] Add Catalog Kafka hosted consumer, bounded retry, DLQ publisher, and commit-after-transaction orchestration.
 - [x] Add component tests for validation, retry/DLQ, and commit ordering.
 - [x] Implement Booking hold persistence, state transitions, transactional outbox, and authoritative event production.
+- [x] Ensure the Catalog hosted consumer does not block application startup while waiting for a Kafka record.
 
 ## Verification
 
-- [x] Unit/component: `dotnet test tests/catalog/TetRail.Catalog.Tests.csproj` — 16 passed.
+- [x] Unit/component: `dotnet test tests/catalog/TetRail.Catalog.Tests.csproj --no-restore` — 19 passed, including the non-blocking startup regression test.
+- [x] Build: `dotnet build services/catalog/TetRail.Catalog.csproj --no-restore` — succeeded with 0 warnings and 0 errors.
 - [x] Unit/component: `cd services/booking-engine; go test ./...` — all three packages passed.
 - [x] Integration/contract: `go test -tags=integration ./...` against local Compose PostgreSQL and Kafka — passed.
 - [ ] Performance/race/security: `go test -race ./...` — NOT RUN: this local Go toolchain has `CGO_ENABLED=0`, while the race detector requires CGO.

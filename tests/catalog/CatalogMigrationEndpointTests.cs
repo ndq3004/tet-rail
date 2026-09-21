@@ -36,7 +36,7 @@ public sealed class CatalogMigrationEndpointTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private sealed class CatalogFactory(string environment = "Development") : WebApplicationFactory<Program>
+    private sealed class CatalogFactory(string environment = "Testing") : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {

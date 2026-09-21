@@ -1,5 +1,6 @@
 using Npgsql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Claims;
@@ -22,9 +23,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     options.TokenValidationParameters.ValidIssuer = cognito.Authority;
     options.TokenValidationParameters.ValidAudience = cognito.Audience;
     options.TokenValidationParameters.RoleClaimType = cognito.GroupClaimType;
+    options.Events = new JwtBearerEvents
+    {
+        OnChallenge = context =>
+        {
+            context.HandleResponse();
+            var correlationId = context.HttpContext.Items.TryGetValue(CorrelationIdMiddleware.HeaderName, out var value) && value is Guid id ? id : Guid.NewGuid();
+            return context.HttpContext.Response.WriteAsJsonAsync(new ApiError("https://tetrail.local/problems/unauthenticated", "Authentication is required", StatusCodes.Status401Unauthorized, "UNAUTHENTICATED", correlationId), context.HttpContext.RequestAborted);
+        },
+        OnForbidden = context =>
+        {
+            var correlationId = context.HttpContext.Items.TryGetValue(CorrelationIdMiddleware.HeaderName, out var value) && value is Guid id ? id : Guid.NewGuid();
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return context.Response.WriteAsJsonAsync(new ApiError("https://tetrail.local/problems/forbidden", "Access is forbidden", StatusCodes.Status403Forbidden, "FORBIDDEN", correlationId), context.HttpContext.RequestAborted);
+        }
+    };
 });
-builder.Services.AddAuthorization();
-builder.Services.AddDataProtection().SetApplicationName("TetRail.Catalog");
+if (builder.Environment.IsEnvironment("Testing")) builder.Services.AddAuthentication("Testing").AddScheme<AuthenticationSchemeOptions, TestingAuthenticationHandler>("Testing", _ => { });
+builder.Services.AddAuthorization(options => options.AddPolicy("Admin", policy => policy.RequireRole("ADMIN")));
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("TetRail.Catalog");
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, ".data-protection-keys")));
+}
 builder.Services.Configure<SeatMapOptions>(builder.Configuration.GetSection(SeatMapOptions.SectionName));
 builder.Services.Configure<SeatProjectionKafkaOptions>(builder.Configuration.GetSection(SeatProjectionKafkaOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -48,12 +69,12 @@ builder.Services.AddSingleton<BookingStateEventParser>();
 builder.Services.AddSingleton<SeatProjectionEventProcessor>();
 builder.Services.AddSingleton<ISeatProjectionKafkaClient, ConfluentSeatProjectionKafkaClient>();
 builder.Services.AddSingleton<IPassengerRepository, PostgresPassengerRepository>();
-builder.Services.AddHostedService<SeatProjectionKafkaConsumer>();
+if (!builder.Environment.IsEnvironment("Testing")) builder.Services.AddHostedService<SeatProjectionKafkaConsumer>();
 builder.Services.AddScoped<SeatMapService>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "TetRail Catalog v1"));
@@ -66,6 +87,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => Results.Ok(new { service = "catalog", status = "healthy" }));
 
 app.MapGet("/api/v1/identity/me", [Authorize] (ClaimsPrincipal user) => Results.Ok(new CurrentIdentity(user.FindFirstValue("sub")!, user.FindAll(cognito.GroupClaimType).SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray())));
+app.MapGet("/api/v1/admin/identity/me", [Authorize(Policy = "Admin")] (ClaimsPrincipal user) => Results.Ok(new CurrentIdentity(user.FindFirstValue("sub")!, ["ADMIN"])));
 app.MapGet("/api/v1/passengers", [Authorize] async (ClaimsPrincipal user, IPassengerRepository repository, CancellationToken ct) => Results.Ok(await repository.ListAsync(user.FindFirstValue("sub")!, ct)));
 app.MapGet("/api/v1/passengers/{id:guid}", [Authorize] async (Guid id, ClaimsPrincipal user, IPassengerRepository repository, CancellationToken ct) => (await repository.GetAsync(user.FindFirstValue("sub")!, id, ct)) is { } passenger ? Results.Ok(passenger) : Results.NotFound());
 app.MapPost("/api/v1/passengers", [Authorize] async (PassengerInput input, ClaimsPrincipal user, IPassengerRepository repository, IDataProtectionProvider protection, HttpContext context, CancellationToken ct) =>
@@ -76,8 +98,15 @@ app.MapPost("/api/v1/passengers", [Authorize] async (PassengerInput input, Claim
     var record = await repository.CreateAsync(user.FindFirstValue("sub")!, input with { FullName = input.FullName.Trim() }, normalized is null ? null : protection.CreateProtector("national-id.v1").Protect(normalized), normalized is null ? null : normalized[^4..], (Guid)context.Items[CorrelationIdMiddleware.HeaderName]!, ct);
     return Results.Created($"/api/v1/passengers/{record.PassengerId}", record);
 });
+app.MapPatch("/api/v1/passengers/{id:guid}", [Authorize] async (Guid id, PassengerInput input, ClaimsPrincipal user, IPassengerRepository repository, IDataProtectionProvider protection, HttpContext context, CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(input.FullName) || input.FullName.Length > 200 || input.DateOfBirth is null || input.DateOfBirth > DateOnly.FromDateTime(DateTime.UtcNow)) return Results.BadRequest();
+    var n=string.IsNullOrWhiteSpace(input.NationalId)?null:new string(input.NationalId.Where(char.IsLetterOrDigit).ToArray()); if(n is {Length:<6} or {Length:>32}) return Results.BadRequest();
+    var record=await repository.UpdateAsync(user.FindFirstValue("sub")!,id,input with {FullName=input.FullName.Trim()},n is null?null:protection.CreateProtector("national-id.v1").Protect(n),n is null?null:n[^4..],(Guid)context.Items[CorrelationIdMiddleware.HeaderName]!,ct); return record is null?Results.NotFound():Results.Ok(record);
+});
+app.MapDelete("/api/v1/passengers/{id:guid}", [Authorize] async (Guid id, ClaimsPrincipal user, IPassengerRepository repository, HttpContext context, CancellationToken ct) => await repository.DeleteAsync(user.FindFirstValue("sub")!,id,(Guid)context.Items[CorrelationIdMiddleware.HeaderName]!,ct)?Results.NoContent():Results.NotFound());
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     app.MapPost("/internal/migrations/run", async (
         ICatalogMigrationRunner runner, HttpContext context, CancellationToken cancellationToken) =>

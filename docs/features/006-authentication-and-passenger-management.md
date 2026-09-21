@@ -51,10 +51,10 @@ Customers can authenticate through the selected OIDC provider and manage only th
 - [ ] Define local/test Cognito-compatible issuer/audience/JWKS configuration, `cognito:groups` role mapping, client flows, refresh/revocation checks, and production key-management deployment.
 - [x] Define versioned HTTP contracts, authorization/error semantics, and sensitive-field representation.
 - [ ] Add producer/consumer compatibility fixtures.
-- [ ] Add Catalog-owned repositories for identity mapping, roles, passenger profiles, and redacted append-only audit records.
-- [ ] Implement Catalog authenticated passenger endpoints with validation, ownership checks, role checks, data protection, and correlated telemetry.
-- [ ] Configure Gateway JWT validation and protected-route forwarding; preserve user and correlation context without trusting client-provided identity headers.
-- [ ] Add unit, integration, contract, and end-to-end tests, including denied/forged/expired/revoked credential paths.
+- [x] Add Catalog-owned repositories for identity mapping, roles, passenger profiles, and redacted append-only audit records.
+- [x] Implement Catalog authenticated passenger endpoints with validation, ownership checks, role checks, data protection, and correlated telemetry.
+- [x] Configure Gateway JWT validation and protected-route forwarding; preserve user and correlation context without trusting client-provided identity headers.
+- [ ] Add live-Cognito integration, contract, and end-to-end tests, including denied/forged/expired/revoked credential paths.
 - [x] Update the knowledge base with confirmed provider and identity-contract decisions.
 
 ## Verification
@@ -69,7 +69,8 @@ Customers can authenticate through the selected OIDC provider and manage only th
 - 2026-09-20: Created from US-01, the product security requirements, and the Gateway/Catalog service boundary.
 - 2026-09-20: AWS Cognito User Pools was confirmed as the direct MVP OIDC provider (D-010); feature implementation started.
 - 2026-09-20: Added the versioned HTTP contract and a forward-only Catalog migration for Cognito identity mapping, customer/admin roles, protected passenger data, and value-free audit records. Endpoint/authentication wiring and automated coverage remain in progress.
+- 2026-09-20: Added Catalog and Gateway JWT authentication, owner-scoped passenger create/read/update/delete routes, protected National ID storage, mutation audit records, API-error authentication responses, Gateway bearer forwarding, and a test-only authentication scheme. Catalog tests pass 18/18 with Kafka disabled only in the explicit `Testing` environment.
 
 ## Remaining risks
 
-- Cognito environment values and production Data Protection key persistence are not yet configured; local/test authentication must not be mistaken for a production identity or key-management deployment.
+- Live Cognito integration requires issuer/audience environment configuration and an access token from the configured user pool. Production Data Protection key persistence remains to be configured with an AWS-managed protected store.

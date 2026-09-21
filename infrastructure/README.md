@@ -17,7 +17,7 @@ docker compose --env-file infrastructure/compose/.env.example -f infrastructure/
 docker compose --env-file infrastructure/compose/.env.example -f infrastructure/compose/compose.yml down
 ```
 
-After the stack is running, open [Kafka UI](http://localhost:8080) to inspect the local `tetrail-local` cluster, topics, records, and consumer groups. Port `8080` is the default and can be changed with `TETRAIL_KAFKA_UI_PORT`. It is unauthenticated and intended only for local development.
+After the stack is running, open [Kafka UI](http://localhost:8082) to inspect the local `tetrail-local` cluster, topics, records, and consumer groups. Port `8082` is the default and can be changed with `TETRAIL_KAFKA_UI_PORT`. It is unauthenticated and intended only for local development.
 
 Copy `.env.example` to an ignored `.env` and change values when defaults conflict. Add `--volumes` to `down` only when intentionally resetting all local platform data.
 

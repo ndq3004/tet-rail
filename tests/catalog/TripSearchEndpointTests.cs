@@ -42,10 +42,35 @@ public sealed class TripSearchEndpointTests : IClassFixture<TripSearchEndpointTe
         Assert.Empty(result!.Trips);
     }
 
+    [Fact]
+    public async Task Passenger_routes_require_authentication_and_return_api_error_v1()
+    {
+        using var response = await client.GetAsync("/api/v1/passengers");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("UNAUTHENTICATED", error?.Code);
+        Assert.NotEqual(Guid.Empty, error?.CorrelationId);
+    }
+
+    [Fact]
+    public async Task Testing_authentication_allows_customer_identity_but_denies_admin_route()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/identity/me");
+        request.Headers.Add("X-Test-Subject", "customer-a");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var adminRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/admin/identity/me");
+        adminRequest.Headers.Add("X-Test-Subject", "customer-a");
+        using var adminResponse = await client.SendAsync(adminRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, adminResponse.StatusCode);
+    }
+
     public sealed class CatalogFactory : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UseEnvironment("Testing");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ITripSearchRepository>();
