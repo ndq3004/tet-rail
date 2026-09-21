@@ -16,3 +16,8 @@ CREATE TABLE IF NOT EXISTS booking.outbox_events (
   occurred_at timestamptz NOT NULL DEFAULT now(), published_at timestamptz NULL, locked_until timestamptz NULL, attempts integer NOT NULL DEFAULT 0 CHECK(attempts >= 0), available_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_booking_outbox_pending ON booking.outbox_events(available_at, occurred_at) WHERE published_at IS NULL;
+CREATE TABLE IF NOT EXISTS booking.hold_requests (
+  id uuid PRIMARY KEY, owner_id uuid NOT NULL, idempotency_key varchar(256) NOT NULL, payload jsonb NOT NULL,
+  status varchar(16) NOT NULL CHECK(status IN ('QUEUED','HELD','REJECTED')), hold_id uuid NULL REFERENCES booking.holds(id), expires_at timestamptz NULL, created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(owner_id,idempotency_key)
+);

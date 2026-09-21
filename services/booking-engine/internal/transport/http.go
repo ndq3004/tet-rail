@@ -1,14 +1,63 @@
 package transport
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/tetrail/train-ticket-online/services/booking-engine/internal/commands"
+	"github.com/tetrail/train-ticket-online/services/booking-engine/internal/holds"
 	"net/http"
+	"time"
 )
 
-func NewHandler() http.Handler {
+type holdService interface {
+	Submit(context.Context, string, string, string, time.Time, []holds.Segment) (commands.Result, error)
+	Get(context.Context, string) (commands.Result, error)
+}
+
+func NewHandler(services ...holdService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
+	if len(services) > 0 {
+		mux.HandleFunc("POST /api/holds", postHold(services[0]))
+		mux.HandleFunc("GET /api/booking-requests/{id}", getRequest(services[0]))
+	}
 	return mux
+}
+
+type holdInput struct {
+	Segments []holds.Segment `json:"segments"`
+}
+
+func postHold(s holdService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var in holdInput
+		if json.NewDecoder(r.Body).Decode(&in) != nil || len(in.Segments) < 1 || len(in.Segments) > 4 {
+			http.Error(w, "invalid hold request", 400)
+			return
+		}
+		key, owner := r.Header.Get("Idempotency-Key"), r.Header.Get("X-User-Id")
+		if key == "" || owner == "" {
+			http.Error(w, "Idempotency-Key and X-User-Id are required", 400)
+			return
+		}
+		out, err := s.Submit(r.Context(), owner, key, r.Header.Get("X-Correlation-Id"), time.Now().UTC().Add(10*time.Minute), in.Segments)
+		if err != nil {
+			http.Error(w, err.Error(), 409)
+			return
+		}
+		w.WriteHeader(202)
+		_ = json.NewEncoder(w).Encode(out)
+	}
+}
+func getRequest(s holdService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		out, err := s.Get(r.Context(), r.PathValue("id"))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	}
 }
 
 func health(response http.ResponseWriter, _ *http.Request) {

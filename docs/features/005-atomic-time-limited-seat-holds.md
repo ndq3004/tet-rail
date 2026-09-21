@@ -68,4 +68,4 @@ See [`../testing/005-atomic-time-limited-seat-holds.md`](../testing/005-atomic-t
 
 ## Remaining risks
 
-- HTTP ingress, booking-command durability, shard ownership, and cross-shard saga compensation remain before US-04 is complete.
+- Feature 020 owns HTTP ingress, command durability, and single-shard worker routing. Cross-shard saga compensation, snapshot/replay, rebalance testing, and load evidence remain before US-04 is complete.
