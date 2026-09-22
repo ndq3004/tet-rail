@@ -33,5 +33,7 @@ This directory is the single canonical location for feature implementation plans
 | 015 | API endpoint overview | Documentation | done | 003 |
 | 016 | Local Swagger UI | Foundation | in-progress | 013 |
 | 017 | Catalog migration runner | Operations | in-progress | 002 |
+| 020 | Durable single-shard hold commands | US-04 | in-progress | 005 |
+| 021 | Carriage shard routing and cross-shard hold saga | US-04 | in-progress | 020 |
 
 Update this catalog in the same change whenever a feature plan is added or its status changes.

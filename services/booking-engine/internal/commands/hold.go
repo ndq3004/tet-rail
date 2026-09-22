@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -11,6 +12,8 @@ import (
 )
 
 const TopicV1 = "booking.hold-commands.v1"
+const MappingVersionV1 = "v1"
+const MappingPartitionsV1 = 12
 
 // HoldRequestedV1 is deliberately separate from seat-state events: it is a durable command,
 // not an assertion that inventory was allocated.
@@ -25,15 +28,25 @@ func (c HoldRequestedV1) ShardKey() (string, error) {
 		return "", fmt.Errorf("at least one segment is required")
 	}
 	trip := c.Segments[0].TripID
-	// The initial stable bucket is the trip. Catalog carriage buckets may be appended
-	// in a compatible command version once that mapping is owned by Booking.
-	key := trip
+	key := trip + ":" + c.Segments[0].CarriageID
 	for _, segment := range c.Segments {
-		if segment.TripID != trip {
+		if segment.TripID != trip || segment.CarriageID == "" || trip+":"+segment.CarriageID != key {
 			return "", fmt.Errorf("cross-shard hold commands require saga compensation")
 		}
 	}
 	return key, nil
+}
+
+// Shard is the documented v1 mapping. Kafka receives the same stable key and its
+// partitioning must be configured with the matching twelve partitions.
+func (c HoldRequestedV1) Shard() (int, error) {
+	key, err := c.ShardKey()
+	if err != nil {
+		return 0, err
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return int(h.Sum32() % MappingPartitionsV1), nil
 }
 
 type Publisher interface {

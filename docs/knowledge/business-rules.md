@@ -12,6 +12,7 @@ Primary sources: [`../product-brief.md`](../product-brief.md) and [`../architect
 - `202 Accepted` confirms only that the command was durably recorded, not that a seat was held.
 - Only a `HELD` result containing `hold_id` and `expires_at` confirms a successful hold.
 - In the MVP, a multi-seat request contains at most four seats in the same carriage and must be all-or-nothing.
+- Inventory routing uses mapping version `v1`: `hash(trip_id + ":" + carriage_id) % 12`; cross-carriage requests require saga compensation.
 - A hold expires after 10 minutes by default unless confirmed.
 
 ## Orders, payments, and tickets

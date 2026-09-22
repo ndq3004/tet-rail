@@ -24,8 +24,8 @@ var ErrHoldExpired = errors.New("hold has expired")
 var ErrHoldNotActive = errors.New("hold is not active")
 
 type Segment struct {
-	TripID, SeatID string
-	Index          int
+	TripID, CarriageID, SeatID string
+	Index                      int
 }
 type CreateCommand struct {
 	HoldID, OwnerID, CorrelationID, CausationID string
