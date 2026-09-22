@@ -89,5 +89,5 @@ public sealed class PostgresSeatProjectionEventApplier(NpgsqlDataSource dataSour
         await upsert.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static bool IsSupported(string eventType) => eventType is BookingStateEventTypes.SeatHeld or BookingStateEventTypes.HoldExpired or BookingStateEventTypes.HoldConfirmed;
+    private static bool IsSupported(string eventType) => eventType is BookingStateEventTypes.SeatHeld or BookingStateEventTypes.HoldExpired or BookingStateEventTypes.HoldCancelled or BookingStateEventTypes.HoldConfirmed;
 }

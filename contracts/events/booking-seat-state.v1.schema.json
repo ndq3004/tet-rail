@@ -6,7 +6,7 @@
   "required": ["event_id", "event_type", "version", "occurred_at", "correlation_id", "causation_id", "payload"],
   "properties": {
     "event_id": { "type": "string", "format": "uuid" },
-    "event_type": { "enum": ["SeatHeld.v1", "HoldExpired.v1", "HoldConfirmed.v1"] },
+    "event_type": { "enum": ["SeatHeld.v1", "HoldExpired.v1", "HoldCancelled.v1", "HoldConfirmed.v1"] },
     "version": { "const": 1 },
     "occurred_at": { "type": "string", "format": "date-time" },
     "correlation_id": { "type": "string", "format": "uuid" },

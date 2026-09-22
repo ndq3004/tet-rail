@@ -154,7 +154,7 @@ public sealed class BookingStateEventParser
             var root = document.RootElement;
             RequireExactProperties(root, "event_id", "event_type", "version", "occurred_at", "correlation_id", "causation_id", "payload");
             var eventType = root.GetProperty("event_type").GetString();
-            if (eventType is not (BookingStateEventTypes.SeatHeld or BookingStateEventTypes.HoldExpired or BookingStateEventTypes.HoldConfirmed) || root.GetProperty("version").GetInt32() != 1)
+            if (eventType is not (BookingStateEventTypes.SeatHeld or BookingStateEventTypes.HoldExpired or BookingStateEventTypes.HoldCancelled or BookingStateEventTypes.HoldConfirmed) || root.GetProperty("version").GetInt32() != 1)
                 throw new BookingStateEventContractException();
             var payload = root.GetProperty("payload");
             RequireExactProperties(payload, "trip_id", "seat_id", "segment_indices");

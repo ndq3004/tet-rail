@@ -4,6 +4,7 @@ public static class BookingStateEventTypes
 {
     public const string SeatHeld = "SeatHeld.v1";
     public const string HoldExpired = "HoldExpired.v1";
+    public const string HoldCancelled = "HoldCancelled.v1";
     public const string HoldConfirmed = "HoldConfirmed.v1";
 }
 

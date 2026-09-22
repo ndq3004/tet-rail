@@ -14,6 +14,7 @@ const SeatStateTopicV1 = "booking.seat-state.v1"
 const (
 	SeatHeldV1      = "SeatHeld.v1"
 	HoldExpiredV1   = "HoldExpired.v1"
+	HoldCancelledV1 = "HoldCancelled.v1"
 	HoldConfirmedV1 = "HoldConfirmed.v1"
 )
 
@@ -73,7 +74,7 @@ func validate(event SeatStateEventV1) error {
 	if event.EventID == "" || event.CorrelationID == "" || event.CausationID == "" || event.Payload.TripID == "" || event.Payload.SeatID == "" {
 		return fmt.Errorf("seat state event identifiers are required")
 	}
-	if event.Version != 1 || (event.EventType != SeatHeldV1 && event.EventType != HoldExpiredV1 && event.EventType != HoldConfirmedV1) {
+	if event.Version != 1 || (event.EventType != SeatHeldV1 && event.EventType != HoldExpiredV1 && event.EventType != HoldCancelledV1 && event.EventType != HoldConfirmedV1) {
 		return fmt.Errorf("unsupported seat state event type or version")
 	}
 	if len(event.Payload.SegmentIndices) == 0 {

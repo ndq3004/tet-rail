@@ -21,3 +21,11 @@ CREATE TABLE IF NOT EXISTS booking.hold_requests (
   status varchar(16) NOT NULL CHECK(status IN ('QUEUED','HELD','REJECTED')), hold_id uuid NULL REFERENCES booking.holds(id), expires_at timestamptz NULL, created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(owner_id,idempotency_key)
 );
+CREATE TABLE IF NOT EXISTS booking.hold_sagas (
+  id uuid PRIMARY KEY, request_id uuid NOT NULL REFERENCES booking.hold_requests(id), state varchar(24) NOT NULL CHECK(state IN ('PREPARING','HELD','COMPENSATING','COMPENSATED','REJECTED')),
+  mapping_version varchar(16) NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz NULL
+);
+CREATE TABLE IF NOT EXISTS booking.hold_saga_steps (
+  saga_id uuid NOT NULL REFERENCES booking.hold_sagas(id) ON DELETE CASCADE, shard_key varchar(160) NOT NULL, hold_id uuid NULL REFERENCES booking.holds(id), state varchar(24) NOT NULL CHECK(state IN ('PENDING','HELD','COMPENSATED','REJECTED')),
+  PRIMARY KEY(saga_id, shard_key)
+);
