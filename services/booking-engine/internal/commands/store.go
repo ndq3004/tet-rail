@@ -62,6 +62,9 @@ type Service struct {
 
 func NewService(store *Store, publisher Publisher) *Service { return &Service{store, publisher} }
 func (s *Service) Submit(ctx context.Context, ownerID, key, correlationID string, expiresAt time.Time, segments []holds.Segment) (Result, error) {
+	if correlationID == "" {
+		correlationID = holds.NewID()
+	}
 	c := HoldRequestedV1{RequestID: holds.NewID(), OwnerID: ownerID, IdempotencyKey: key, CorrelationID: correlationID, ExpiresAt: expiresAt, Segments: segments}
 	if _, err := c.ShardKey(); err != nil {
 		return Result{}, err

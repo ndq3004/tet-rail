@@ -40,8 +40,8 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 
 ## Implementation
 
-- [ ] Define command and HTTP contracts, migration, and repository request lifecycle.
-- [ ] Add Kafka command publisher/consumer worker and HTTP transport.
+- [x] Define command envelope, migration, and repository request lifecycle.
+- [x] Add Kafka command publisher/consumer worker and HTTP transport.
 - [ ] Add tests and update US-04 knowledge/runbook.
 
 ## Verification
@@ -53,7 +53,7 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 ## Progress notes
 
 - 2026-09-21: Split from Feature 005 so the durable single-shard command path can be implemented and reviewed independently.
-- 2026-09-21: Added the Kafka command topic, stable trip-shard routing, PostgreSQL request/idempotency records, and a consumer-group worker that creates a hold then records `HELD` or `REJECTED`. HTTP enqueue and polling remain outstanding.
+- 2026-09-21: Added the Kafka command topic, stable trip-shard routing, PostgreSQL request/idempotency records, a consumer-group worker that creates a hold then records `HELD` or `REJECTED`, and HTTP enqueue/polling endpoints.
 
 ## Remaining risks
 
