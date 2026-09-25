@@ -36,14 +36,19 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 - [x] Add carriage-aware command validation/routing and migration metadata.
 - [x] Implement saga coordinator, provisional holds, and compensation.
-- [ ] Add component/integration/recovery tests and update runbook.
+- [x] Add component and integration tests for logical saga holds, duplicate worker delivery, and compensation; recovery/rebalance remains in the next resilience slice.
 
 ## Verification
 
-- [ ] Unit/component: `cd services/booking-engine; go test ./...`
-- [ ] Integration: `go test -tags=integration ./...`
+- [x] Unit/component: `cd services/booking-engine; go test ./...` — passed on 2026-09-25.
+- [x] Integration: `go test -tags=integration ./...` — passed on 2026-09-25 against local PostgreSQL and Kafka.
 - [ ] Resilience: restart/rebalance and compensation checks on local Kafka/PostgreSQL.
 
 ## Remaining risks
 
-- Snapshot/replay, rebalance/load evidence, and a CGO-enabled race environment remain after this slice.
+- Snapshot/replay and rebalance recovery move to Feature 022; load evidence remains after this slice.
+
+## Progress notes
+
+- 2026-09-25: A successful cross-carriage saga returns its own logical `hold_id`, which resolves through the regular hold lookup endpoint. The request reference permits either a physical or logical hold identity; physical reservation and confirmed-allocation constraints remain foreign-key enforced.
+- 2026-09-25: PostgreSQL integration coverage proves that a multi-carriage command becomes `HELD` with a pollable logical hold, repeat delivery is harmless, and a later shard conflict compensates earlier provisional holds.

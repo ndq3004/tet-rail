@@ -16,6 +16,7 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 - `POST /api/holds`, `GET /api/booking-requests/{requestId}`, and `GET /api/holds/{holdId}`.
 - PostgreSQL-backed idempotency/result records and an ordered Kafka consumer-group worker which creates atomic same-shard holds.
 - Component tests for request validation, idempotent enqueue/result behavior, and conflict rejection.
+- Development-only HTTP diagnostics for publishing a validated hold command through the same Kafka producer.
 
 ### Out of scope
 
@@ -42,19 +43,22 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 
 - [x] Define command envelope, migration, and repository request lifecycle.
 - [x] Add Kafka command publisher/consumer worker and HTTP transport.
-- [ ] Add tests and update US-04 knowledge/runbook.
+- [x] Add HTTP/component coverage and update US-04 contract knowledge/runbook.
+- [x] Add a development-only Kafka command diagnostic endpoint and manual verification steps.
 
 ## Verification
 
-- [ ] Unit/component: `cd services/booking-engine; go test ./...`
-- [ ] Integration/contract: `go test -tags=integration ./...`
-- [ ] Performance/race/security: `go test -race ./...` with a CGO-enabled Go toolchain; otherwise record NOT RUN.
+- [x] Unit/component: `cd services/booking-engine; go test ./...` — passed on 2026-09-25.
+- [x] Integration/contract: `go test -tags=integration ./...` — passed on 2026-09-25 against local PostgreSQL and Kafka.
+- [x] Performance/race/security: `go test -race ./...` — passed on 2026-09-25.
 
 ## Progress notes
 
 - 2026-09-21: Split from Feature 005 so the durable single-shard command path can be implemented and reviewed independently.
 - 2026-09-21: Added the Kafka command topic, stable trip-shard routing, PostgreSQL request/idempotency records, a consumer-group worker that creates a hold then records `HELD` or `REJECTED`, and HTTP enqueue/polling endpoints.
+- 2026-09-23: Updated the hot-seat k6 workload for durable command acknowledgement and hot-seat contention coverage.
+- 2026-09-25: Published the HTTP and command v1 schemas, aligned the transport with snake_case, made multi-carriage coordinator selection deterministic, and added component coverage for the public request shape.
 
 ## Remaining risks
 
-- Cross-shard saga, snapshot/replay, rebalance and load evidence remain required to close US-04.
+- Cross-shard saga integration/recovery tests, snapshot/replay, rebalance, and load evidence remain required to close US-04.

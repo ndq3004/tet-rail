@@ -2,7 +2,7 @@
 
 This runbook records the repeatable checks for Feature 005. It covers the implemented PostgreSQL hold lifecycle, transactional outbox, Kafka seat-state topic, and Catalog projection consumer.
 
-The Booking Engine does **not** yet expose `POST /api/holds` or a booking-command ingress endpoint. Do not attempt to test hold creation through HTTP. The authoritative lifecycle is currently exercised by the Go integration test; the Kafka sample below is for manually testing the Catalog consumer contract.
+The Booking Engine exposes `POST /api/holds`, `GET /api/booking-requests/{requestId}`, and `GET /api/holds/{holdId}`. A `202` confirms only durable command acceptance; poll until the request is `HELD` with a `hold_id` and `expires_at`, or `REJECTED`. The lifecycle is exercised by the Go integration test; the Kafka sample below is for manually testing the Catalog consumer contract.
 
 ## Scope and prerequisites
 
@@ -43,6 +43,12 @@ k6 run -e VUS=20 -e DURATION=30s -e HOT_SEAT_RATIO=0.8 tests/load/booking-holds-
 
 Record VUs, duration, payload shape, 12-partition configuration, hot-seat ratio, accepted/rejected ratio, acknowledgement latency, worker lag, and queue-drain time. This workload is evidence only after the HTTP endpoint and worker are running against the local Kafka/PostgreSQL platform.
 
+## Development Kafka diagnostic endpoint
+
+Set `ENABLE_KAFKA_DIAGNOSTICS=true` only for a local Booking Engine process. It enables `GET /internal/kafka/hold-commands`, which generates a unique sample hold command and submits it through the identical durable Kafka producer. It is intentionally absent unless explicitly enabled.
+
+From `services/booking-engine`, dot-source `scripts/set-local-env.ps1` to set the local PostgreSQL URL, Kafka broker, and diagnostic flag in the current PowerShell session.
+
 The integration-tagged Go suite uses the local PostgreSQL database and Kafka broker. It performs the following with generated UUIDs:
 
 1. Creates an active hold for two segments.
@@ -50,6 +56,7 @@ The integration-tagged Go suite uses the local PostgreSQL database and Kafka bro
 3. Confirms the hold and verifies two final allocations exist.
 4. Creates an expired hold and verifies `ExpireDue` moves it to `EXPIRED`.
 5. Produces a v1 seat-state event to Kafka and reads it back from the calculated key partition.
+6. Creates a cross-carriage logical saga hold, verifies repeat worker delivery is harmless, then verifies a conflicting second shard compensates the first provisional hold.
 
 To run the race detector later, use a Go toolchain with CGO enabled:
 

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS booking.holds (
   expires_at timestamptz NOT NULL, confirmed_at timestamptz NULL, expired_at timestamptz NULL, created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS booking.held_segments (
-  hold_id uuid NOT NULL REFERENCES booking.holds(id) ON DELETE CASCADE, trip_id uuid NOT NULL, seat_id uuid NOT NULL, segment_index integer NOT NULL CHECK(segment_index > 0),
+  hold_id uuid NOT NULL REFERENCES booking.holds(id) ON DELETE CASCADE, trip_id uuid NOT NULL, carriage_id varchar(64) NOT NULL, seat_id uuid NOT NULL, segment_index integer NOT NULL CHECK(segment_index > 0),
   PRIMARY KEY (trip_id,seat_id,segment_index), UNIQUE (hold_id,trip_id,seat_id,segment_index)
 );
 CREATE TABLE IF NOT EXISTS booking.confirmed_allocations (
@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS booking.hold_requests (
   UNIQUE(owner_id,idempotency_key)
 );
 CREATE TABLE IF NOT EXISTS booking.hold_sagas (
-  id uuid PRIMARY KEY, request_id uuid NOT NULL REFERENCES booking.hold_requests(id), state varchar(24) NOT NULL CHECK(state IN ('PREPARING','HELD','COMPENSATING','COMPENSATED','REJECTED')),
-  mapping_version varchar(16) NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz NULL
+  id uuid PRIMARY KEY, request_id uuid NOT NULL UNIQUE REFERENCES booking.hold_requests(id), state varchar(24) NOT NULL CHECK(state IN ('PREPARING','HELD','COMPENSATING','COMPENSATED','REJECTED')),
+  mapping_version varchar(16) NOT NULL, owner_id uuid NOT NULL, expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), completed_at timestamptz NULL
 );
 CREATE TABLE IF NOT EXISTS booking.hold_saga_steps (
   saga_id uuid NOT NULL REFERENCES booking.hold_sagas(id) ON DELETE CASCADE, shard_key varchar(160) NOT NULL, hold_id uuid NULL REFERENCES booking.holds(id), state varchar(24) NOT NULL CHECK(state IN ('PENDING','HELD','COMPENSATED','REJECTED')),

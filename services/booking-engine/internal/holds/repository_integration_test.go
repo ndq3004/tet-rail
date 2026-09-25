@@ -30,7 +30,7 @@ func TestPostgresLifecycleWritesOutboxInSameTransaction(t *testing.T) {
 	holdID := newID()
 	tripID := newID()
 	seatID := newID()
-	command := CreateCommand{HoldID: holdID, OwnerID: newID(), CorrelationID: newID(), CausationID: newID(), ExpiresAt: now.Add(time.Minute), Segments: []Segment{{TripID: tripID, SeatID: seatID, Index: 1}, {TripID: tripID, SeatID: seatID, Index: 2}}}
+	command := CreateCommand{HoldID: holdID, OwnerID: newID(), CorrelationID: newID(), CausationID: newID(), ExpiresAt: now.Add(time.Minute), Segments: []Segment{{TripID: tripID, CarriageID: "A", SeatID: seatID, Index: 1}, {TripID: tripID, CarriageID: "A", SeatID: seatID, Index: 2}}}
 	if err := repository.Create(ctx, command); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestPostgresLifecycleWritesOutboxInSameTransaction(t *testing.T) {
 		t.Fatalf("confirmed=%d, want 2", confirmed)
 	}
 	expiredHoldID := newID()
-	if err := repository.Create(ctx, CreateCommand{HoldID: expiredHoldID, OwnerID: newID(), CorrelationID: newID(), CausationID: newID(), ExpiresAt: now.Add(-time.Minute), Segments: []Segment{{TripID: newID(), SeatID: newID(), Index: 1}}}); err != nil {
+	if err := repository.Create(ctx, CreateCommand{HoldID: expiredHoldID, OwnerID: newID(), CorrelationID: newID(), CausationID: newID(), ExpiresAt: now.Add(-time.Minute), Segments: []Segment{{TripID: newID(), CarriageID: "A", SeatID: newID(), Index: 1}}}); err != nil {
 		t.Fatal(err)
 	}
 	expired, err := repository.ExpireDue(ctx, now, 10)

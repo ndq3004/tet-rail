@@ -1,0 +1,19 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail Booking Holds API", "version": "v1" },
+  "paths": {
+    "/api/v1/holds": {
+      "post": {
+        "parameters": [
+          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } },
+          { "name": "X-User-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldInput" } } } },
+        "responses": { "202": { "description": "Command durably appended; the hold is not yet confirmed." }, "400": { "description": "Invalid request" }, "409": { "description": "Idempotency conflict or request cannot be accepted" }, "503": { "description": "Kafka durability acknowledgement unavailable" } }
+      }
+    },
+    "/api/v1/booking-requests/{requestId}": { "get": { "parameters": [{ "name": "requestId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "QUEUED, HELD, or REJECTED result" }, "404": { "description": "Unknown request" } } } },
+    "/api/v1/holds/{holdId}": { "get": { "parameters": [{ "name": "holdId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Authoritative hold state and expiry" }, "404": { "description": "Unknown hold" } } } }
+  },
+  "components": { "schemas": { "HoldInput": { "type": "object", "required": ["segments"], "properties": { "segments": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/components/schemas/Segment" } } }, "additionalProperties": false }, "Segment": { "type": "object", "required": ["trip_id", "carriage_id", "seat_id", "segment_index"], "properties": { "trip_id": { "type": "string", "format": "uuid" }, "carriage_id": { "type": "string", "minLength": 1, "maxLength": 64 }, "seat_id": { "type": "string", "format": "uuid" }, "segment_index": { "type": "integer", "minimum": 1 } }, "additionalProperties": false } } }
+}

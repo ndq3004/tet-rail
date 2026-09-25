@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"io"
+	"sort"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -18,9 +20,12 @@ const MappingPartitionsV1 = 12
 // HoldRequestedV1 is deliberately separate from seat-state events: it is a durable command,
 // not an assertion that inventory was allocated.
 type HoldRequestedV1 struct {
-	RequestID, OwnerID, IdempotencyKey, CorrelationID string
-	ExpiresAt                                         time.Time
-	Segments                                          []holds.Segment
+	RequestID      string          `json:"request_id"`
+	OwnerID        string          `json:"owner_id"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	CorrelationID  string          `json:"correlation_id"`
+	ExpiresAt      time.Time       `json:"expires_at"`
+	Segments       []holds.Segment `json:"segments"`
 }
 
 func (c HoldRequestedV1) ShardKey() (string, error) {
@@ -53,6 +58,7 @@ func (c HoldRequestedV1) ShardKeys() ([]string, error) {
 	for key := range keys {
 		out = append(out, key)
 	}
+	sort.Strings(out)
 	return out, nil
 }
 
@@ -77,7 +83,7 @@ func NewKafkaPublisher(brokers []string) *KafkaPublisher {
 	return &KafkaPublisher{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: TopicV1, RequiredAcks: kafka.RequireAll, Async: false, Balancer: &kafka.Hash{}}}
 }
 func (p *KafkaPublisher) Publish(ctx context.Context, command HoldRequestedV1) error {
-	key, err := command.ShardKey()
+	keys, err := command.ShardKeys()
 	if err != nil {
 		return err
 	}
@@ -85,7 +91,9 @@ func (p *KafkaPublisher) Publish(ctx context.Context, command HoldRequestedV1) e
 	if err != nil {
 		return err
 	}
-	return p.writer.WriteMessages(ctx, kafka.Message{Key: []byte(key), Value: body})
+	// A multi-carriage command is coordinated by the deterministic first shard.
+	// Its worker owns the saga and records compensation durably before reporting a result.
+	return p.writer.WriteMessages(ctx, kafka.Message{Key: []byte(keys[0]), Value: body})
 }
 func (p *KafkaPublisher) Close() error { return p.writer.Close() }
 
@@ -104,6 +112,14 @@ func (c *Consumer) Run(ctx context.Context) error {
 	for {
 		message, err := c.reader.FetchMessage(ctx)
 		if err != nil {
+			if err == io.EOF {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(250 * time.Millisecond):
+					continue
+				}
+			}
 			return err
 		}
 		var command HoldRequestedV1

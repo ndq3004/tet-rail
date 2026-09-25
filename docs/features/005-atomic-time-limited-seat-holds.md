@@ -65,6 +65,8 @@ See [`../testing/005-atomic-time-limited-seat-holds.md`](../testing/005-atomic-t
 
 - 2026-09-19: Topic/source-position semantics and the consumer/producer boundaries were introduced with the existing Feature 004 applier.
 - 2026-09-19: Added PostgreSQL hold/segment/allocation/outbox persistence, outbox dispatch, local Kafka topic initialization, and PostgreSQL/Kafka integration tests. The final allocation constraint and outbox event are committed in the same transaction as a hold lifecycle transition.
+- 2026-09-25: Feature 020 published the v1 hold HTTP/command contracts, added snake_case transport coverage, and made cross-carriage coordinator selection deterministic. The remaining US-04 resilience and load scope stays in its dependent feature plans.
+- 2026-09-25: The local PostgreSQL/Kafka integration suite passed, including successful logical saga holds, duplicate delivery, and compensation after a shard conflict.
 
 ## Remaining risks
 

@@ -40,7 +40,7 @@ func main() {
 		commandPublisher := commands.NewKafkaPublisher(brokers)
 		defer commandPublisher.Close()
 		commandConsumer := commands.NewConsumer(brokers, commands.NewWorker(holds.NewRepository(pool), commands.NewStore(pool)))
-		handler = transport.NewHandler(commands.NewService(commands.NewStore(pool), commandPublisher, holds.NewRepository(pool)))
+		handler = transport.NewDevelopmentHandler(os.Getenv("ENABLE_KAFKA_DIAGNOSTICS") == "true", commands.NewService(commands.NewStore(pool), commandPublisher, holds.NewRepository(pool)))
 		defer commandConsumer.Close()
 		go func() {
 			if err := commandConsumer.Run(context.Background()); err != nil {

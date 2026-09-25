@@ -12,6 +12,6 @@ const owner = __ENV.OWNER_ID || '50000000-0000-0000-0000-000000000001';
 export default function () {
   const hot = Math.random() < Number(__ENV.HOT_SEAT_RATIO || 0.8);
   const seat = hot ? '70000000-0000-0000-0000-000000000001' : `70000000-0000-0000-0000-${String(__VU * 10000 + __ITER).padStart(12, '0')}`;
-  const response = http.post(`${baseUrl}/api/holds`, JSON.stringify({ segments: [{ trip_id: trip, carriage_id: carriage, seat_id: seat, index: 1 }] }), { headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `${__VU}-${__ITER}`, 'X-User-Id': owner } });
+  const response = http.post(`${baseUrl}/api/holds`, JSON.stringify({ segments: [{ trip_id: trip, carriage_id: carriage, seat_id: seat, segment_index: 1 }] }), { headers: { 'Content-Type': 'application/json', 'Idempotency-Key': `${__VU}-${__ITER}`, 'X-User-Id': owner } });
   check(response, { 'durably accepted or rejected': (r) => r.status === 202 || r.status === 409 });
 }

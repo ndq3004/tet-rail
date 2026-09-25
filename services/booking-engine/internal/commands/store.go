@@ -13,8 +13,10 @@ import (
 var ErrIdempotencyConflict = errors.New("idempotency key was used with a different request")
 
 type Result struct {
-	RequestID, Status, HoldID string
-	ExpiresAt                 *time.Time
+	RequestID string     `json:"request_id"`
+	Status    string     `json:"status"`
+	HoldID    string     `json:"hold_id,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 type Store struct{ pool *pgxpool.Pool }
 
@@ -74,7 +76,7 @@ func (s *Service) Submit(ctx context.Context, ownerID, key, correlationID string
 		correlationID = holds.NewID()
 	}
 	c := HoldRequestedV1{RequestID: holds.NewID(), OwnerID: ownerID, IdempotencyKey: key, CorrelationID: correlationID, ExpiresAt: expiresAt, Segments: segments}
-	if _, err := c.ShardKey(); err != nil {
+	if _, err := c.ShardKeys(); err != nil {
 		return Result{}, err
 	}
 	r, created, err := s.store.Begin(ctx, c)
@@ -95,6 +97,13 @@ func (s *Service) GetHold(ctx context.Context, id string) (holds.Hold, error) {
 	return s.holds.Get(ctx, id)
 }
 func (w *Worker) Handle(ctx context.Context, c HoldRequestedV1) error {
+	result, err := w.store.Get(ctx, c.RequestID)
+	if err != nil {
+		return err
+	}
+	if result.Status != "QUEUED" {
+		return nil
+	}
 	keys, err := c.ShardKeys()
 	if err != nil {
 		return err
@@ -114,7 +123,7 @@ func (w *Worker) Handle(ctx context.Context, c HoldRequestedV1) error {
 
 func (w *Worker) handleSaga(ctx context.Context, c HoldRequestedV1, keys []string) error {
 	sagaID := holds.NewID()
-	if _, err := w.store.pool.Exec(ctx, `INSERT INTO booking.hold_sagas(id,request_id,state,mapping_version) VALUES($1,$2,'PREPARING','v1')`, sagaID, c.RequestID); err != nil {
+	if _, err := w.store.pool.Exec(ctx, `INSERT INTO booking.hold_sagas(id,request_id,state,mapping_version,owner_id,expires_at) VALUES($1,$2,'PREPARING','v1',$3,$4)`, sagaID, c.RequestID, c.OwnerID, c.ExpiresAt.UTC()); err != nil {
 		return err
 	}
 	groups := make(map[string][]holds.Segment, len(keys))
@@ -136,7 +145,18 @@ func (w *Worker) handleSaga(ctx context.Context, c HoldRequestedV1, keys []strin
 					return fmt.Errorf("compensate saga %s: %w", sagaID, cancelErr)
 				}
 			}
-			_, _ = w.store.pool.Exec(ctx, `UPDATE booking.hold_saga_steps SET state='COMPENSATED' WHERE saga_id=$1 AND state='HELD'; UPDATE booking.hold_saga_steps SET state='REJECTED' WHERE saga_id=$1 AND shard_key=$2; UPDATE booking.hold_sagas SET state='COMPENSATED',completed_at=now() WHERE id=$1; UPDATE booking.hold_requests SET status='REJECTED' WHERE id=$3`, sagaID, key, c.RequestID)
+			if _, updateErr := w.store.pool.Exec(ctx, `UPDATE booking.hold_saga_steps SET state='COMPENSATED' WHERE saga_id=$1 AND state='HELD'`, sagaID); updateErr != nil {
+				return updateErr
+			}
+			if _, updateErr := w.store.pool.Exec(ctx, `UPDATE booking.hold_saga_steps SET state='REJECTED' WHERE saga_id=$1 AND shard_key=$2`, sagaID, key); updateErr != nil {
+				return updateErr
+			}
+			if _, updateErr := w.store.pool.Exec(ctx, `UPDATE booking.hold_sagas SET state='COMPENSATED',completed_at=now() WHERE id=$1`, sagaID); updateErr != nil {
+				return updateErr
+			}
+			if _, updateErr := w.store.pool.Exec(ctx, `UPDATE booking.hold_requests SET status='REJECTED' WHERE id=$1`, c.RequestID); updateErr != nil {
+				return updateErr
+			}
 			return nil
 		}
 		created[key] = holdID
@@ -144,6 +164,9 @@ func (w *Worker) handleSaga(ctx context.Context, c HoldRequestedV1, keys []strin
 			return err
 		}
 	}
-	_, err := w.store.pool.Exec(ctx, `UPDATE booking.hold_sagas SET state='HELD',completed_at=now() WHERE id=$1; UPDATE booking.hold_requests SET status='HELD',expires_at=$2 WHERE id=$3`, sagaID, c.ExpiresAt.UTC(), c.RequestID)
+	if _, err := w.store.pool.Exec(ctx, `UPDATE booking.hold_sagas SET state='HELD',completed_at=now() WHERE id=$1`, sagaID); err != nil {
+		return err
+	}
+	_, err := w.store.pool.Exec(ctx, `UPDATE booking.hold_requests SET status='HELD',hold_id=$1,expires_at=$2 WHERE id=$3`, sagaID, c.ExpiresAt.UTC(), c.RequestID)
 	return err
 }

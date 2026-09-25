@@ -24,8 +24,10 @@ var ErrHoldExpired = errors.New("hold has expired")
 var ErrHoldNotActive = errors.New("hold is not active")
 
 type Segment struct {
-	TripID, CarriageID, SeatID string
-	Index                      int
+	TripID     string `json:"trip_id"`
+	CarriageID string `json:"carriage_id"`
+	SeatID     string `json:"seat_id"`
+	Index      int    `json:"segment_index"`
 }
 type CreateCommand struct {
 	HoldID, OwnerID, CorrelationID, CausationID string
@@ -49,16 +51,23 @@ type Hold struct {
 func (r *Repository) Get(ctx context.Context, holdID string) (Hold, error) {
 	var hold Hold
 	err := r.pool.QueryRow(ctx, `SELECT id::text,owner_id::text,state,expires_at FROM booking.holds WHERE id=$1`, holdID).Scan(&hold.ID, &hold.OwnerID, &hold.State, &hold.ExpiresAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = r.pool.QueryRow(ctx, `SELECT id::text,owner_id::text,state,expires_at FROM booking.hold_sagas WHERE id=$1`, holdID).Scan(&hold.ID, &hold.OwnerID, &hold.State, &hold.ExpiresAt)
+	}
 	return hold, err
 }
 
 func RunMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	sql, err := migrationFiles.ReadFile("migrations/001_hold_lifecycle.sql")
-	if err != nil {
-		return err
+	for _, name := range []string{"migrations/001_hold_lifecycle.sql", "migrations/002_carriage_routing.sql", "migrations/003_saga_logical_hold.sql", "migrations/004_logical_hold_request_reference.sql"} {
+		sql, err := migrationFiles.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if _, err = pool.Exec(ctx, string(sql)); err != nil {
+			return err
+		}
 	}
-	_, err = pool.Exec(ctx, string(sql))
-	return err
+	return nil
 }
 
 func (r *Repository) Create(ctx context.Context, command CreateCommand) error {
@@ -84,7 +93,7 @@ func (r *Repository) Create(ctx context.Context, command CreateCommand) error {
 			return err
 		}
 		for _, segment := range segments {
-			if _, err := tx.Exec(ctx, `INSERT INTO booking.held_segments(hold_id,trip_id,seat_id,segment_index) VALUES ($1,$2,$3,$4)`, command.HoldID, segment.TripID, segment.SeatID, segment.Index); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO booking.held_segments(hold_id,trip_id,carriage_id,seat_id,segment_index) VALUES ($1,$2,$3,$4,$5)`, command.HoldID, segment.TripID, segment.CarriageID, segment.SeatID, segment.Index); err != nil {
 				return err
 			}
 		}
@@ -318,7 +327,7 @@ func validateCreate(c CreateCommand) error {
 	}
 	seen := map[string]bool{}
 	for _, s := range c.Segments {
-		if s.TripID == "" || s.SeatID == "" || s.Index < 1 {
+		if s.TripID == "" || s.CarriageID == "" || s.SeatID == "" || s.Index < 1 {
 			return fmt.Errorf("invalid held segment")
 		}
 		key := s.TripID + s.SeatID + fmt.Sprint(s.Index)
