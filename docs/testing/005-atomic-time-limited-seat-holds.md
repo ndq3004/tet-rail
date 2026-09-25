@@ -33,6 +33,16 @@ Set-Location ../..
 dotnet test tests/catalog/TetRail.Catalog.Tests.csproj
 ```
 
+## Hot-seat load workload
+
+With Booking Engine running on port 8080, run the reproducible k6 workload from the repository root:
+
+```powershell
+k6 run -e VUS=20 -e DURATION=30s -e HOT_SEAT_RATIO=0.8 tests/load/booking-holds-hot-seat.js
+```
+
+Record VUs, duration, payload shape, 12-partition configuration, hot-seat ratio, accepted/rejected ratio, acknowledgement latency, worker lag, and queue-drain time. This workload is evidence only after the HTTP endpoint and worker are running against the local Kafka/PostgreSQL platform.
+
 The integration-tagged Go suite uses the local PostgreSQL database and Kafka broker. It performs the following with generated UUIDs:
 
 1. Creates an active hold for two segments.

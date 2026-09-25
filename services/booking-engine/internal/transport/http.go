@@ -12,6 +12,7 @@ import (
 type holdService interface {
 	Submit(context.Context, string, string, string, time.Time, []holds.Segment) (commands.Result, error)
 	Get(context.Context, string) (commands.Result, error)
+	GetHold(context.Context, string) (holds.Hold, error)
 }
 
 func NewHandler(services ...holdService) http.Handler {
@@ -20,8 +21,20 @@ func NewHandler(services ...holdService) http.Handler {
 	if len(services) > 0 {
 		mux.HandleFunc("POST /api/holds", postHold(services[0]))
 		mux.HandleFunc("GET /api/booking-requests/{id}", getRequest(services[0]))
+		mux.HandleFunc("GET /api/holds/{id}", getHold(services[0]))
 	}
 	return mux
+}
+func getHold(s holdService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := s.GetHold(r.Context(), r.PathValue("id"))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(result)
+	}
 }
 
 type holdInput struct {

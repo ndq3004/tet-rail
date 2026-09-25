@@ -12,6 +12,14 @@ func TestShardKeyRejectsCrossTripCommand(t *testing.T) {
 	}
 }
 
+func TestShardKeysGroupsCarriages(t *testing.T) {
+	c := HoldRequestedV1{Segments: []holds.Segment{{TripID: "trip", CarriageID: "A", SeatID: "one", Index: 1}, {TripID: "trip", CarriageID: "B", SeatID: "two", Index: 1}}}
+	keys, err := c.ShardKeys()
+	if err != nil || len(keys) != 2 {
+		t.Fatalf("ShardKeys() = %v, %v", keys, err)
+	}
+}
+
 func TestShardUsesTripAndCarriage(t *testing.T) {
 	c := HoldRequestedV1{Segments: []holds.Segment{{TripID: "trip", CarriageID: "A", SeatID: "one", Index: 1}}}
 	shard, err := c.Shard()

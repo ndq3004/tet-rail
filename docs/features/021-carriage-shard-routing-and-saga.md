@@ -34,8 +34,8 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 ## Implementation
 
-- [ ] Add carriage-aware command validation/routing and migration metadata.
-- [ ] Implement saga coordinator, provisional holds, and compensation.
+- [x] Add carriage-aware command validation/routing and migration metadata.
+- [x] Implement saga coordinator, provisional holds, and compensation.
 - [ ] Add component/integration/recovery tests and update runbook.
 
 ## Verification
@@ -46,4 +46,4 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 ## Remaining risks
 
-- Snapshot/replay, race detector, and distributed load evidence remain after this slice.
+- Snapshot/replay, rebalance/load evidence, and a CGO-enabled race environment remain after this slice.

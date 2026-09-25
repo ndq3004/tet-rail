@@ -30,11 +30,30 @@ func (c HoldRequestedV1) ShardKey() (string, error) {
 	trip := c.Segments[0].TripID
 	key := trip + ":" + c.Segments[0].CarriageID
 	for _, segment := range c.Segments {
-		if segment.TripID != trip || segment.CarriageID == "" || trip+":"+segment.CarriageID != key {
-			return "", fmt.Errorf("cross-shard hold commands require saga compensation")
+		if segment.TripID != trip || segment.CarriageID == "" {
+			return "", fmt.Errorf("segments require one trip and carriage")
 		}
 	}
 	return key, nil
+}
+
+func (c HoldRequestedV1) ShardKeys() ([]string, error) {
+	if len(c.Segments) == 0 {
+		return nil, fmt.Errorf("at least one segment is required")
+	}
+	trip := c.Segments[0].TripID
+	keys := map[string]struct{}{}
+	for _, segment := range c.Segments {
+		if segment.TripID != trip || segment.CarriageID == "" {
+			return nil, fmt.Errorf("segments require one trip and carriage")
+		}
+		keys[trip+":"+segment.CarriageID] = struct{}{}
+	}
+	out := make([]string, 0, len(keys))
+	for key := range keys {
+		out = append(out, key)
+	}
+	return out, nil
 }
 
 // Shard is the documented v1 mapping. Kafka receives the same stable key and its

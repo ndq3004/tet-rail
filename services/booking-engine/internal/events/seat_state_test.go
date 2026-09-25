@@ -20,6 +20,14 @@ func TestValidateRejectsDuplicateSegment(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsHoldCancelled(t *testing.T) {
+	event := validEvent()
+	event.EventType = HoldCancelledV1
+	if err := validate(event); err != nil {
+		t.Fatalf("validate cancellation: %v", err)
+	}
+}
+
 func validEvent() SeatStateEventV1 {
 	return SeatStateEventV1{EventID: "event", EventType: SeatHeldV1, Version: 1, OccurredAt: time.Now().UTC(), CorrelationID: "correlation", CausationID: "cause", Payload: SeatStatePayload{TripID: "trip", SeatID: "seat", SegmentIndices: []int{1, 2}}}
 }

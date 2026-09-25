@@ -41,6 +41,16 @@ type OutboxEvent struct {
 	ID      string
 	Payload events.SeatStateEventV1
 }
+type Hold struct {
+	ID, OwnerID, State string
+	ExpiresAt          time.Time
+}
+
+func (r *Repository) Get(ctx context.Context, holdID string) (Hold, error) {
+	var hold Hold
+	err := r.pool.QueryRow(ctx, `SELECT id::text,owner_id::text,state,expires_at FROM booking.holds WHERE id=$1`, holdID).Scan(&hold.ID, &hold.OwnerID, &hold.State, &hold.ExpiresAt)
+	return hold, err
+}
 
 func RunMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	sql, err := migrationFiles.ReadFile("migrations/001_hold_lifecycle.sql")
@@ -109,6 +119,50 @@ func (r *Repository) ReleaseOutbox(ctx context.Context, id string, retryAfter ti
 
 func (r *Repository) Confirm(ctx context.Context, holdID, correlationID, causationID string, now time.Time) error {
 	return r.transition(ctx, holdID, correlationID, causationID, now, true)
+}
+
+// Cancel releases an active provisional hold. It is deliberately distinct from expiry so
+// projections and audit trails can identify saga compensation.
+func (r *Repository) Cancel(ctx context.Context, holdID, correlationID, causationID string, now time.Time) error {
+	return r.inTx(ctx, func(tx pgx.Tx) error {
+		var state string
+		if err := tx.QueryRow(ctx, `SELECT state FROM booking.holds WHERE id=$1 FOR UPDATE`, holdID).Scan(&state); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrHoldNotActive
+			}
+			return err
+		}
+		if state == "CANCELLED" {
+			return nil
+		}
+		if state != "ACTIVE" {
+			return ErrHoldNotActive
+		}
+		rows, err := tx.Query(ctx, `SELECT trip_id::text,seat_id::text,segment_index FROM booking.held_segments WHERE hold_id=$1`, holdID)
+		if err != nil {
+			return err
+		}
+		var segments []Segment
+		for rows.Next() {
+			var segment Segment
+			if err := rows.Scan(&segment.TripID, &segment.SeatID, &segment.Index); err != nil {
+				rows.Close()
+				return err
+			}
+			segments = append(segments, segment)
+		}
+		rows.Close()
+		if err := lockSegments(ctx, tx, normalized(segments)); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE booking.holds SET state='CANCELLED' WHERE id=$1`, holdID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM booking.held_segments WHERE hold_id=$1`, holdID); err != nil {
+			return err
+		}
+		return r.enqueueSeatEvents(ctx, tx, events.HoldCancelledV1, correlationID, causationID, segments)
+	})
 }
 func (r *Repository) ExpireDue(ctx context.Context, now time.Time, limit int) (int, error) {
 	if limit < 1 {
