@@ -64,6 +64,77 @@ To run the race detector later, use a Go toolchain with CGO enabled:
 go test -race ./...
 ```
 
+## Manual durable hold command and Kafka inspection
+
+This check proves the HTTP request is acknowledged only after the Booking Engine writes a `HoldRequested.v1` record to `booking.hold-commands.v1`. It uses generated test identifiers; do not reuse the sample idempotency key for a different payload.
+
+### 1. Start the Booking Engine with local diagnostics
+
+In a PowerShell terminal, run the Booking Engine against the local PostgreSQL and Kafka containers:
+
+```powershell
+Set-Location services/booking-engine
+. .\scripts\set-local-env.ps1
+go run ./cmd/api
+```
+
+Wait for the service to listen on port `8080`. `ENABLE_KAFKA_DIAGNOSTICS` is local-development only and is not required for the HTTP test below.
+
+### 2. Submit a hold command
+
+In a second PowerShell terminal, submit one same-carriage segment. The `202` response contains a `request_id`; it does not confirm that the hold succeeded.
+
+```powershell
+$request = @{
+  segments = @(@{
+    trip_id = "40000000-0000-0000-0000-000000000001"
+    carriage_id = "A"
+    seat_id = "70000000-0000-0000-0000-000000000001"
+    segment_index = 1
+  })
+} | ConvertTo-Json -Depth 4
+
+$headers = @{
+  "Idempotency-Key" = [guid]::NewGuid().ToString()
+  "X-User-Id" = "50000000-0000-0000-0000-000000000001"
+  "Content-Type" = "application/json"
+}
+
+$accepted = Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/holds" -Headers $headers -Body $request
+$accepted
+```
+
+Expected acknowledgement data:
+
+```json
+{ "request_id": "<uuid>", "status": "QUEUED" }
+```
+
+### 3. Inspect the Kafka command record and poll the result
+
+Kafka receives a JSON `HoldRequested.v1` command keyed by `trip_id:carriage_id`. The worker fills the generated `request_id`, `owner_id`, `idempotency_key`, `correlation_id`, and ten-minute `expires_at` fields before producing it.
+
+```powershell
+docker exec tetrail-kafka-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic booking.hold-commands.v1 --from-beginning --property print.key=true --property key.separator=" | " --timeout-ms 5000
+
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)"
+```
+
+Expected Kafka shape (the values are generated):
+
+```text
+40000000-0000-0000-0000-000000000001:A | {"request_id":"<uuid>","owner_id":"50000000-0000-0000-0000-000000000001","idempotency_key":"<uuid>","correlation_id":"<uuid>","expires_at":"<UTC timestamp>","segments":[{"trip_id":"40000000-0000-0000-0000-000000000001","carriage_id":"A","seat_id":"70000000-0000-0000-0000-000000000001","segment_index":1}]}
+```
+
+Poll until the response is `HELD` with `hold_id` and `expires_at`, or `REJECTED`. For a successful result, inspect the authoritative hold:
+
+```powershell
+$result = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)"
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/holds/$($result.hold_id)"
+```
+
+Repeat the identical request body and `Idempotency-Key`: it must return the original `request_id`. Change the body while keeping the key: it must return `409 Conflict`.
+
 ## Manual Kafka-to-Catalog projection check
 
 ### 1. Start Catalog and apply its migrations

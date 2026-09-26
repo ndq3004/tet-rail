@@ -1,6 +1,6 @@
 # 022 — Booking shard snapshot and recovery
 
-Status: `planned`
+Status: `in-progress`
 Owner: `Codex`
 Depends on: `021`
 
@@ -37,17 +37,21 @@ An assigned Booking Engine partition restores an epoch-fenced inventory guard fr
 
 ## Implementation
 
-- [ ] Define snapshot persistence boundary and versioned record.
+- [x] Define snapshot persistence boundary and versioned Redis record.
 - [ ] Wire Kafka assignment epoch, snapshot restore, and replay into the hold worker.
 - [ ] Add restart/rebalance component and PostgreSQL/Kafka integration tests.
 - [ ] Update the US-04 runbook and knowledge summary.
 
 ## Verification
 
-- [ ] Unit/component: `cd services/booking-engine; go test ./...`
+- [x] Unit/component: `cd services/booking-engine; go test ./...` — passed on 2026-09-25.
 - [ ] Integration: `go test -tags=integration ./...`
 - [ ] Resilience: controlled worker restart and partition-owner epoch test using local Kafka/PostgreSQL.
 
 ## Remaining risks
 
 - Load evidence is tracked separately after recovery behavior is verified.
+
+## Progress notes
+
+- 2026-09-25: Added a versioned, partition-scoped Redis snapshot boundary that validates mapping version, partition, source offset, epoch, and unique occupied keys. It is intentionally not authoritative; a missing or invalid snapshot must fall back to Kafka replay.
