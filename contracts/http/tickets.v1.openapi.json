@@ -1,0 +1,65 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail Tickets", "version": "v1" },
+  "paths": {
+    "/api/orders/{id}/tickets": {
+      "get": {
+        "security": [{ "bearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Owned tickets. Empty for pending, unknown, or foreign orders.", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Ticket" } } } } },
+          "401": { "description": "Authentication required" }
+        }
+      }
+    },
+    "/api/tickets/{id}": {
+      "get": {
+        "security": [{ "bearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "description": "Owned ticket and a private PDF URL valid for five minutes when ready.", "content": { "application/json": { "schema": {
+            "type": "object", "required": ["ticket", "pdfUrl"],
+            "properties": { "ticket": { "$ref": "#/components/schemas/Ticket" }, "pdfUrl": { "type": "string", "format": "uri", "nullable": true } }
+          } } } },
+          "401": { "description": "Authentication required" },
+          "404": { "description": "Unknown or foreign ticket" }
+        }
+      }
+    },
+    "/api/tickets/validate": {
+      "post": {
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["reference"],
+          "properties": { "reference": { "type": "string", "format": "uuid" } }
+        } } } },
+        "responses": {
+          "200": { "description": "Validity of the opaque QR reference", "content": { "application/json": { "schema": {
+            "type": "object", "required": ["valid"], "properties": { "valid": { "type": "boolean" } }
+          } } } },
+          "400": { "description": "Malformed request" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" } },
+    "parameters": { "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } } },
+    "schemas": {
+      "Ticket": {
+        "type": "object",
+        "required": ["ticketId", "orderId", "itemId", "tripId", "seatId", "segmentIndex", "qrReference", "issuedAt", "pdfReady"],
+        "properties": {
+          "ticketId": { "type": "string", "format": "uuid" },
+          "orderId": { "type": "string", "format": "uuid" },
+          "itemId": { "type": "string", "format": "uuid" },
+          "tripId": { "type": "string", "format": "uuid" },
+          "seatId": { "type": "string", "format": "uuid" },
+          "segmentIndex": { "type": "integer", "minimum": 1 },
+          "qrReference": { "type": "string", "format": "uuid" },
+          "issuedAt": { "type": "string", "format": "date-time" },
+          "pdfReady": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

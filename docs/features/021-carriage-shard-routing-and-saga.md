@@ -1,6 +1,6 @@
 # 021 — Carriage shard routing and cross-shard hold saga
 
-Status: `in-progress`
+Status: `done`
 Owner: `Codex`
 Depends on: `020`
 
@@ -21,9 +21,9 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 ## Acceptance criteria
 
-- [ ] Each segment has a carriage ID and commands route deterministically by it.
-- [ ] Multi-carriage commands either hold every shard or compensate all provisional holds.
-- [ ] Saga outcomes are idempotent, observable, and covered by tests.
+- [x] Each segment has a carriage ID and commands route deterministically by it.
+- [x] Multi-carriage commands either hold every shard or compensate all provisional holds.
+- [x] Saga outcomes are idempotent, observable, and covered by tests.
 
 ## Design and impact
 
@@ -34,6 +34,8 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 ## Implementation
 
+- [x] Commit the request outcome, saga state, provisional holds and compensation in one Booking PostgreSQL transaction. Retry infrastructure failures without converting them to contention rejections.
+
 - [x] Add carriage-aware command validation/routing and migration metadata.
 - [x] Implement saga coordinator, provisional holds, and compensation.
 - [x] Add component and integration tests for logical saga holds, duplicate worker delivery, and compensation; recovery/rebalance remains in the next resilience slice.
@@ -42,11 +44,8 @@ Booking commands route deterministically by trip and carriage. Same-carriage hol
 
 - [x] Unit/component: `cd services/booking-engine; go test ./...` — passed on 2026-09-25.
 - [x] Integration: `go test -tags=integration ./...` — passed on 2026-09-25 against local PostgreSQL and Kafka.
-- [ ] Resilience: restart/rebalance and compensation checks on local Kafka/PostgreSQL.
+- [x] Resilience: restart/rebalance and compensation checks on local Kafka/PostgreSQL.
 
-## Remaining risks
-
-- Snapshot/replay and rebalance recovery move to Feature 022; load evidence remains after this slice.
 
 ## Progress notes
 

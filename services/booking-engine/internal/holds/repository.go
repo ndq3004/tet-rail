@@ -46,6 +46,7 @@ type OutboxEvent struct {
 type Hold struct {
 	ID, OwnerID, State string
 	ExpiresAt          time.Time
+	Segments           []Segment `json:"segments,omitempty"`
 }
 
 func (r *Repository) Get(ctx context.Context, holdID string) (Hold, error) {
@@ -54,57 +55,107 @@ func (r *Repository) Get(ctx context.Context, holdID string) (Hold, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = r.pool.QueryRow(ctx, `SELECT id::text,owner_id::text,state,expires_at FROM booking.hold_sagas WHERE id=$1`, holdID).Scan(&hold.ID, &hold.OwnerID, &hold.State, &hold.ExpiresAt)
 	}
+	if err != nil {
+		return hold, err
+	}
+	rows, err := r.pool.Query(ctx, `SELECT trip_id::text,carriage_id,seat_id::text,segment_index
+		FROM booking.held_segments
+		WHERE hold_id=$1 OR hold_id IN (SELECT hold_id FROM booking.hold_saga_steps WHERE saga_id=$1 AND hold_id IS NOT NULL)
+		ORDER BY trip_id,seat_id,segment_index`, holdID)
+	if err != nil {
+		return hold, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var segment Segment
+		if err := rows.Scan(&segment.TripID, &segment.CarriageID, &segment.SeatID, &segment.Index); err != nil {
+			return hold, err
+		}
+		hold.Segments = append(hold.Segments, segment)
+	}
+	if err := rows.Err(); err != nil {
+		return hold, err
+	}
 	return hold, err
 }
 
 func RunMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	for _, name := range []string{"migrations/001_hold_lifecycle.sql", "migrations/002_carriage_routing.sql", "migrations/003_saga_logical_hold.sql", "migrations/004_logical_hold_request_reference.sql"} {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('booking:migrations',0))`); err != nil {
+		return err
+	}
+	for _, name := range []string{"migrations/001_hold_lifecycle.sql", "migrations/002_carriage_routing.sql", "migrations/003_saga_logical_hold.sql", "migrations/004_logical_hold_request_reference.sql", "migrations/005_hold_command_ack.sql", "migrations/006_shard_epochs.sql", "migrations/007_payment_confirmations.sql", "migrations/008_expiry_reconciliation.sql", "migrations/009_traffic_pressure.sql"} {
 		sql, err := migrationFiles.ReadFile(name)
 		if err != nil {
 			return err
 		}
-		if _, err = pool.Exec(ctx, string(sql)); err != nil {
+		if _, err = tx.Exec(ctx, string(sql)); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 func (r *Repository) Create(ctx context.Context, command CreateCommand) error {
+	return r.inTx(ctx, func(tx pgx.Tx) error {
+		return r.CreateInTx(ctx, tx, command)
+	})
+}
+
+func (r *Repository) CreateInTx(ctx context.Context, tx pgx.Tx, command CreateCommand) error {
 	if err := validateCreate(command); err != nil {
 		return err
 	}
-	return r.inTx(ctx, func(tx pgx.Tx) error {
-		segments := normalized(command.Segments)
-		if err := lockSegments(ctx, tx, segments); err != nil {
+	segments := normalized(command.Segments)
+	if err := lockSegments(ctx, tx, segments); err != nil {
+		return err
+	}
+	for _, segment := range segments {
+		var blocked bool
+		err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM booking.held_segments WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3 UNION ALL SELECT 1 FROM booking.confirmed_allocations WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3)`, segment.TripID, segment.SeatID, segment.Index).Scan(&blocked)
+		if err != nil {
 			return err
 		}
-		for _, segment := range segments {
-			var blocked bool
-			err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM booking.held_segments WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3 UNION ALL SELECT 1 FROM booking.confirmed_allocations WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3)`, segment.TripID, segment.SeatID, segment.Index).Scan(&blocked)
-			if err != nil {
-				return err
-			}
-			if blocked {
-				return ErrUnavailable
-			}
+		if blocked {
+			return ErrUnavailable
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO booking.holds(id, owner_id, state, expires_at) VALUES ($1,$2,'ACTIVE',$3)`, command.HoldID, command.OwnerID, command.ExpiresAt.UTC()); err != nil {
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO booking.holds(id, owner_id, state, expires_at) VALUES ($1,$2,'ACTIVE',$3)`, command.HoldID, command.OwnerID, command.ExpiresAt.UTC()); err != nil {
+		return err
+	}
+	for _, segment := range segments {
+		if _, err := tx.Exec(ctx, `INSERT INTO booking.held_segments(hold_id,trip_id,carriage_id,seat_id,segment_index) VALUES ($1,$2,$3,$4,$5)`, command.HoldID, segment.TripID, segment.CarriageID, segment.SeatID, segment.Index); err != nil {
 			return err
 		}
-		for _, segment := range segments {
-			if _, err := tx.Exec(ctx, `INSERT INTO booking.held_segments(hold_id,trip_id,carriage_id,seat_id,segment_index) VALUES ($1,$2,$3,$4,$5)`, command.HoldID, segment.TripID, segment.CarriageID, segment.SeatID, segment.Index); err != nil {
-				return err
-			}
-		}
-		return r.enqueueSeatEvents(ctx, tx, events.SeatHeldV1, command.CorrelationID, command.CausationID, segments)
-	})
+	}
+	return r.enqueueSeatEvents(ctx, tx, events.SeatHeldV1, command.CorrelationID, command.CausationID, segments)
+}
+
+func (r *Repository) Occupied(ctx context.Context, segment Segment) (bool, error) {
+	var occupied bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM booking.held_segments WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3
+		UNION ALL SELECT 1 FROM booking.confirmed_allocations WHERE trip_id=$1 AND seat_id=$2 AND segment_index=$3
+	)`, segment.TripID, segment.SeatID, segment.Index).Scan(&occupied)
+	return occupied, err
 }
 
 func (r *Repository) ClaimOutbox(ctx context.Context, lease time.Duration) (*OutboxEvent, error) {
 	var id string
 	var payload []byte
-	err := r.pool.QueryRow(ctx, `UPDATE booking.outbox_events SET locked_until=now()+$1::interval, attempts=attempts+1 WHERE id=(SELECT id FROM booking.outbox_events WHERE published_at IS NULL AND available_at <= now() AND (locked_until IS NULL OR locked_until < now()) ORDER BY occurred_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id::text,payload`, lease.String()).Scan(&id, &payload)
+	err := r.pool.QueryRow(ctx, `UPDATE booking.outbox_events SET locked_until=now()+$1::interval, attempts=attempts+1 WHERE id=(SELECT candidate.id FROM booking.outbox_events candidate
+		WHERE candidate.published_at IS NULL AND candidate.available_at <= now()
+		  AND (candidate.locked_until IS NULL OR candidate.locked_until < now())
+		  AND NOT EXISTS (
+			SELECT 1 FROM booking.outbox_events previous
+			WHERE previous.event_key=candidate.event_key AND previous.published_at IS NULL
+			  AND (previous.occurred_at,previous.id) < (candidate.occurred_at,candidate.id)
+		  )
+		ORDER BY candidate.occurred_at,candidate.id FOR UPDATE OF candidate SKIP LOCKED LIMIT 1) RETURNING id::text,payload`, lease.String()).Scan(&id, &payload)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -127,84 +178,57 @@ func (r *Repository) ReleaseOutbox(ctx context.Context, id string, retryAfter ti
 }
 
 func (r *Repository) Confirm(ctx context.Context, holdID, correlationID, causationID string, now time.Time) error {
-	return r.transition(ctx, holdID, correlationID, causationID, now, true)
+	return r.transition(ctx, holdID, correlationID, causationID, now)
 }
 
 // Cancel releases an active provisional hold. It is deliberately distinct from expiry so
 // projections and audit trails can identify saga compensation.
 func (r *Repository) Cancel(ctx context.Context, holdID, correlationID, causationID string, now time.Time) error {
 	return r.inTx(ctx, func(tx pgx.Tx) error {
-		var state string
-		if err := tx.QueryRow(ctx, `SELECT state FROM booking.holds WHERE id=$1 FOR UPDATE`, holdID).Scan(&state); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrHoldNotActive
-			}
-			return err
-		}
-		if state == "CANCELLED" {
-			return nil
-		}
-		if state != "ACTIVE" {
-			return ErrHoldNotActive
-		}
-		rows, err := tx.Query(ctx, `SELECT trip_id::text,seat_id::text,segment_index FROM booking.held_segments WHERE hold_id=$1`, holdID)
-		if err != nil {
-			return err
-		}
-		var segments []Segment
-		for rows.Next() {
-			var segment Segment
-			if err := rows.Scan(&segment.TripID, &segment.SeatID, &segment.Index); err != nil {
-				rows.Close()
-				return err
-			}
-			segments = append(segments, segment)
-		}
-		rows.Close()
-		if err := lockSegments(ctx, tx, normalized(segments)); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE booking.holds SET state='CANCELLED' WHERE id=$1`, holdID); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM booking.held_segments WHERE hold_id=$1`, holdID); err != nil {
-			return err
-		}
-		return r.enqueueSeatEvents(ctx, tx, events.HoldCancelledV1, correlationID, causationID, segments)
+		return r.CancelInTx(ctx, tx, holdID, correlationID, causationID)
 	})
 }
-func (r *Repository) ExpireDue(ctx context.Context, now time.Time, limit int) (int, error) {
-	if limit < 1 {
-		return 0, fmt.Errorf("limit must be positive")
-	}
-	rows, err := r.pool.Query(ctx, `SELECT id FROM booking.holds WHERE state='ACTIVE' AND expires_at <= $1 ORDER BY expires_at LIMIT $2`, now.UTC(), limit)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return 0, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	count := 0
-	for _, id := range ids {
-		if err := r.transition(ctx, id, "00000000-0000-0000-0000-000000000000", id, now, false); err == nil {
-			count++
-		} else if !errors.Is(err, ErrHoldNotActive) {
-			return count, err
-		}
-	}
-	return count, nil
-}
 
-func (r *Repository) transition(ctx context.Context, holdID, correlationID, causationID string, now time.Time, confirm bool) error {
+func (r *Repository) CancelInTx(ctx context.Context, tx pgx.Tx, holdID, correlationID, causationID string) error {
+	var state string
+	if err := tx.QueryRow(ctx, `SELECT state FROM booking.holds WHERE id=$1 FOR UPDATE`, holdID).Scan(&state); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrHoldNotActive
+		}
+		return err
+	}
+	if state == "CANCELLED" {
+		return nil
+	}
+	if state != "ACTIVE" {
+		return ErrHoldNotActive
+	}
+	rows, err := tx.Query(ctx, `SELECT trip_id::text,seat_id::text,segment_index FROM booking.held_segments WHERE hold_id=$1`, holdID)
+	if err != nil {
+		return err
+	}
+	var segments []Segment
+	for rows.Next() {
+		var segment Segment
+		if err := rows.Scan(&segment.TripID, &segment.SeatID, &segment.Index); err != nil {
+			rows.Close()
+			return err
+		}
+		segments = append(segments, segment)
+	}
+	rows.Close()
+	if err := lockSegments(ctx, tx, normalized(segments)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE booking.holds SET state='CANCELLED' WHERE id=$1`, holdID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM booking.held_segments WHERE hold_id=$1`, holdID); err != nil {
+		return err
+	}
+	return r.enqueueSeatEvents(ctx, tx, events.HoldCancelledV1, correlationID, causationID, segments)
+}
+func (r *Repository) transition(ctx context.Context, holdID, correlationID, causationID string, now time.Time) error {
 	expiredOnConfirm := false
 	err := r.inTx(ctx, func(tx pgx.Tx) error {
 		var state string
@@ -236,7 +260,7 @@ func (r *Repository) transition(ctx context.Context, holdID, correlationID, caus
 			return err
 		}
 		expired := !now.UTC().Before(expiresAt.UTC())
-		if confirm && !expired {
+		if !expired {
 			for _, s := range segments {
 				if _, err := tx.Exec(ctx, `INSERT INTO booking.confirmed_allocations(trip_id,seat_id,segment_index,hold_id) VALUES($1,$2,$3,$4)`, s.TripID, s.SeatID, s.Index, holdID); err != nil {
 					return err
@@ -250,18 +274,10 @@ func (r *Repository) transition(ctx context.Context, holdID, correlationID, caus
 			}
 			return r.enqueueSeatEvents(ctx, tx, events.HoldConfirmedV1, correlationID, causationID, segments)
 		}
-		if _, err := tx.Exec(ctx, `UPDATE booking.holds SET state='EXPIRED', expired_at=$2 WHERE id=$1`, holdID, now.UTC()); err != nil {
+		if err := r.expireInTx(ctx, tx, []string{holdID}, segments, now.UTC(), correlationID, causationID); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM booking.held_segments WHERE hold_id=$1`, holdID); err != nil {
-			return err
-		}
-		if err := r.enqueueSeatEvents(ctx, tx, events.HoldExpiredV1, correlationID, causationID, segments); err != nil {
-			return err
-		}
-		if confirm {
-			expiredOnConfirm = true
-		}
+		expiredOnConfirm = true
 		return nil
 	})
 	if err != nil {
@@ -288,7 +304,7 @@ func (r *Repository) enqueueSeatEvents(ctx context.Context, tx pgx.Tx, eventType
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO booking.outbox_events(id,event_type,event_key,payload) VALUES($1,$2,$3,$4)`, event.EventID, event.EventType, key, body); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO booking.outbox_events(id,event_type,event_key,payload,occurred_at) VALUES($1,$2,$3,$4,clock_timestamp())`, event.EventID, event.EventType, key, body); err != nil {
 			return err
 		}
 	}

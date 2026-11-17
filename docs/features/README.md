@@ -20,20 +20,22 @@ This directory is the single canonical location for feature implementation plans
 | 002 | Local platform foundation | Foundation | done | 001 |
 | 003 | Trip search and fare discovery | US-02 | done | Foundation |
 | 004 | Seat map and availability projection | US-03 | done | US-02 |
-| 005 | Atomic time-limited seat holds | US-04 | in-progress | US-03 |
+| 005 | Atomic time-limited seat holds | US-04 | done | US-03 |
 | 006 | Authentication and passenger management | US-01 | in-progress | Foundation |
-| 007 | Order creation from an active hold | US-05 | N/A | US-01, US-04 |
-| 008 | Payment simulator and idempotent webhooks | US-06 | N/A | US-05 |
-| 009 | Hold expiration and automatic seat release | US-07 | N/A | US-04, US-05 |
-| 010 | Electronic ticket issuance and delivery | US-08 | N/A | US-06 |
-| 011 | Peak traffic control and waiting room | US-09 | N/A | Complete vertical slice |
-| 012 | Administration, reporting, and operations | US-10 | N/A | Service domain events |
+| 007 | Order creation from an active hold | US-05 | in-progress | US-01, US-04 |
+| 007 | Order creation from an active hold | US-05 | done | US-01, US-04 |
+| 008 | Payment simulator and idempotent webhooks | US-06 | done | US-05 |
+| 009 | Hold expiration and automatic seat release | US-07 | done | US-04, US-05 |
+| 010 | Electronic ticket issuance and delivery | US-08 | done | US-06 |
+| 011 | Peak traffic control and waiting room | US-09 | done | Complete vertical slice |
+| 012 | Administration, reporting, and operations | US-10 | done | Service domain events |
 | 013 | Aspire local application orchestration | Foundation | in-progress | 002 |
 | 014 | Customer booking web experience | UI foundation | done | 003, 004 |
 | 015 | API endpoint overview | Documentation | done | 003 |
 | 016 | Local Swagger UI | Foundation | in-progress | 013 |
 | 017 | Catalog migration runner | Operations | in-progress | 002 |
-| 020 | Durable single-shard hold commands | US-04 | in-progress | 005 |
-| 021 | Carriage shard routing and cross-shard hold saga | US-04 | in-progress | 020 |
+| 020 | Durable single-shard hold commands | US-04 | done | 005 |
+| 021 | Carriage shard routing and cross-shard hold saga | US-04 | done | 020 |
+| 022 | Booking shard snapshot and recovery | US-04 | done | 021 |
 
 Update this catalog in the same change whenever a feature plan is added or its status changes.

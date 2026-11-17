@@ -25,6 +25,9 @@ Primary sources: [`../architecture.md`](../architecture.md) and [`../delivery-pl
 
 - A service must not read another service's tables directly.
 - A booking partition has one logical writer; the PostgreSQL unique constraint remains the final barrier.
+- Booking workers acquire a PostgreSQL epoch for each Kafka assignment and check it in the transaction that applies a hold command. Redis snapshots track replay progress; booking availability remains authoritative in PostgreSQL.
+- A pending hold submission can republish the original command envelope after an ambiguous Kafka acknowledgement. Duplicate deliveries serialize on the original request row.
+- Gateway forwards booking commands and lookups with the owner derived from the validated JWT subject. Booking Engine checks the owner for both request and hold lookups. Keep Booking Engine ingress private to trusted callers.
 - Slow work such as payment, PDF generation, notification, and reporting stays off the booking ingress critical path.
 - Concurrency must be bounded and use timeouts and backpressure.
 - The one-million-command target is measured at durable Kafka acknowledgement across the cluster, not as tickets sold.
@@ -45,3 +48,11 @@ Primary sources: [`../architecture.md`](../architecture.md) and [`../delivery-pl
 - `infrastructure/`: local orchestration, telemetry, and deployment assets.
 - `tests/`: cross-service contract, end-to-end, and load tests.
 - `docs/features/`: implementation plans; `docs/knowledge/`: retrieval context.
+
+### Hold expiry reconciliation
+
+Booking Engine scans PostgreSQL on startup and then every second when idle. It processes bounded batches of due holds and claims each physical hold or multi-carriage saga in a transaction. Expiry removes provisional segment claims and inserts existing `HoldExpired.v1` events in the same transaction. The seat-state outbox keeps each trip and seat in order across publication retries. Redis is unnecessary for release. See [feature 009](../features/009-hold-expiration-and-automatic-seat-release.md).
+
+The private Booking Engine pressure endpoint reports bounded queue depth, oldest pending age, active physical holds, PostgreSQL pool utilization, and recent Kafka write pressure. Gateway samples this endpoint and Redis latency outside the request path. See [feature 011](../features/011-peak-traffic-control-and-waiting-room.md).
+
+The private v1 Booking pressure response includes `kafkaSkew`, the difference between the busiest and quietest booking partitions' offset growth over the latest sample interval. Gateway combines it with Redis memory usage and admitted checkout throughput when deciding whether to pause new hold admissions. [Feature 011](../features/011-peak-traffic-control-and-waiting-room.md)

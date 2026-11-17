@@ -1,6 +1,6 @@
 # 020 — Durable single-shard hold commands
 
-Status: `in-progress`
+Status: `done`
 Owner: `Codex`
 Depends on: `005`
 
@@ -25,21 +25,26 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 
 ## Acceptance criteria
 
-- [ ] A valid command with an `Idempotency-Key` and user context returns `202` only after Kafka acknowledges `HoldRequested.v1`.
-- [ ] Repeating the same key and logical payload returns the original `request_id`; using it with a different payload is rejected.
-- [ ] A command contains one to four seats for one journey and is accepted only when all seats map to one inventory shard.
-- [ ] The worker stores `HELD` plus `hold_id`/`expires_at`, or `REJECTED`, and polling never exposes a false successful hold.
-- [ ] Tests cover validation, duplicate submission, worker success, and contention rejection.
+- [x] A valid command with an `Idempotency-Key` and user context returns `202` only after Kafka acknowledges `HoldRequested.v1`.
+- [x] Repeating the same key and logical payload returns the original `request_id`; using it with a different payload is rejected.
+- [x] The single-shard path handles one to four segment claims for one journey. Feature 021 extends processing to multi-carriage commands.
+- [x] The worker stores `HELD` plus `hold_id`/`expires_at`, or `REJECTED`, and polling never exposes a false successful hold.
+- [x] Tests cover validation, duplicate submission, worker success, and contention rejection.
 
 ## Design and impact
 
 - Service/module: Booking Engine owns request records and produces/consumes `booking.hold-commands.v1`; Kafka partitions provide one logical worker per assigned partition.
 - API/event contract: add a versioned HTTP OpenAPI contract and `HoldRequested.v1` JSON command envelope. The Kafka key is the stable inventory-shard key derived from trip and seat bucket.
-- Data/migration: a forward-only Booking migration creates request/idempotency/result records. A failed Kafka publish leaves no accepted result; a duplicate retry safely reuses the original request.
+- Data/migration: a forward-only Booking migration adds the original command and acknowledgement time to the request record. A failed publish keeps the request recoverable. Older queued requests are republished with their original ID; terminal requests demonstrate durable consumption. A forward fix can resume publishing stored envelopes without deleting queued requests.
 - Security/observability: owner identity comes from trusted gateway context, IDs are not logged as payloads, and request/worker outcomes are measured at their boundaries.
 - Key decisions: cross-shard commands are explicitly rejected until saga compensation exists; direct Kafka acknowledgement is required before returning `202`.
 
 ## Implementation
+
+- [x] Route authenticated hold submission and polling through Gateway. Derive the owner from the validated JWT and enforce ownership in Booking.
+- [x] Verify authenticated forwarding through Gateway with a valid test JWT and a mismatched client-supplied owner header.
+
+- [x] Persist the original command and its acknowledgement state. The PostgreSQL integration test covers concurrent retry before acknowledgement and verifies request identity after an ambiguous publish.
 
 - [x] Define command envelope, migration, and repository request lifecycle.
 - [x] Add Kafka command publisher/consumer worker and HTTP transport.
@@ -47,6 +52,9 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 - [x] Add a development-only Kafka command diagnostic endpoint and manual verification steps.
 
 ## Verification
+
+- Gateway build and a loopback smoke test passed. All three booking routes returned 401 for an unauthenticated caller with a forged owner header. Booking transport tests verify both lookup routes return 404 for a foreign owner and 200 for the matching owner.
+- The authenticated loopback check used a temporary OIDC issuer with an RS256 signing key. Submission returned 202, a retry returned the original request ID, the JWT owner retrieved the hold and expiry, and a second JWT subject received 404 on both lookups despite supplying the owner's header.
 
 - [x] Unit/component: `cd services/booking-engine; go test ./...` — passed on 2026-09-25.
 - [x] Integration/contract: `go test -tags=integration ./...` — passed on 2026-09-25 against local PostgreSQL and Kafka.
@@ -58,7 +66,4 @@ Customers can submit an idempotent, single-inventory-shard hold command. The Boo
 - 2026-09-21: Added the Kafka command topic, stable trip-shard routing, PostgreSQL request/idempotency records, a consumer-group worker that creates a hold then records `HELD` or `REJECTED`, and HTTP enqueue/polling endpoints.
 - 2026-09-23: Updated the hot-seat k6 workload for durable command acknowledgement and hot-seat contention coverage.
 - 2026-09-25: Published the HTTP and command v1 schemas, aligned the transport with snake_case, made multi-carriage coordinator selection deterministic, and added component coverage for the public request shape.
-
-## Remaining risks
-
-- Cross-shard saga integration/recovery tests, snapshot/replay, rebalance, and load evidence remain required to close US-04.
+- 2026-09-26: Local k6 smoke workload (`VUS=10`, `DURATION=5s`, `HOT_SEAT_RATIO=0.8`) recorded 50 durable `202` acknowledgements with zero rejected or unexpected responses. The workload uses a per-run idempotency-key prefix to avoid cross-run conflicts; this is not distributed capacity evidence.

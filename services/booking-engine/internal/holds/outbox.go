@@ -2,6 +2,7 @@ package holds
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/tetrail/train-ticket-online/services/booking-engine/internal/events"
@@ -23,7 +24,10 @@ func (d *OutboxDispatcher) DispatchOne(ctx context.Context) (bool, error) {
 	if err != nil || event == nil {
 		return false, err
 	}
-	if err = d.publisher.Publish(ctx, event.Payload); err != nil {
+	publishCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	err = d.publisher.Publish(publishCtx, event.Payload)
+	cancel()
+	if err != nil {
 		return true, d.repository.ReleaseOutbox(ctx, event.ID, time.Second)
 	}
 	return true, d.repository.MarkPublished(ctx, event.ID)
@@ -31,10 +35,10 @@ func (d *OutboxDispatcher) DispatchOne(ctx context.Context) (bool, error) {
 func (d *OutboxDispatcher) Run(ctx context.Context, idle time.Duration) error {
 	for {
 		didWork, err := d.DispatchOne(ctx)
-		if err != nil {
-			return err
+		if err != nil && ctx.Err() == nil {
+			slog.Warn("seat state outbox dispatch will retry")
 		}
-		if !didWork {
+		if err != nil || !didWork {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

@@ -74,6 +74,7 @@ Completed: <feature/feature portion>
 
 Token-efficiency rules:
 
+- Compact all material to be sent in a prompt into a concise working context.
 - Lead with the result; do not narrate the entire process.
 - Default to no more than eight lines and four bullets.
 - Do not list every touched file; mention only files/contracts requiring review attention.

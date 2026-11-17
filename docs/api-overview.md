@@ -9,11 +9,11 @@ This is the quick reference for HTTP APIs across TetRail's five core services. I
 
 | Service | Runtime | Implemented endpoints | Planned business endpoints |
 |---|---|---:|---:|
-| Gateway & Traffic Control | .NET | 2 | 0 |
+| Gateway & Traffic Control | .NET | 7 | 0 |
 | Identity, Catalog & Schedule | .NET | 3 | 1 |
 | Booking Engine | Go | 1 | 3 |
-| Order & Payment | .NET | 1 | 4 |
-| Ticket, Notification & Reporting | .NET | 1 | 1 |
+| Order & Payment | .NET | 3 | 2 |
+| Ticket, Notification & Reporting | .NET | 4 | 0 |
 
 All service health checks return `200 OK` with `{ "service": "...", "status": "healthy" }`.
 
@@ -27,6 +27,8 @@ All service health checks return `200 OK` with `{ "service": "...", "status": "h
 | Catalog | `GET /api/v1/trips?from=&to=&date=` | Search scheduled trips, effective fares, and timestamped availability. | `200`, `400 VALIDATION_FAILED`, `503 CATALOG_UNAVAILABLE`. Canonical schema: [trip-search.v1.openapi.json](../contracts/http/trip-search.v1.openapi.json). |
 | Booking Engine | `GET /health` | Booking Engine health check. | `200` |
 | Order & Payment | `GET /health` | Order & Payment health check. | `200` |
+| Gateway, Order & Payment | `POST /api/payments/{orderId}/simulate` | Schedule one of five payment scenarios for an owned order. | `202`; see [payments.v1.openapi.json](../contracts/http/payments.v1.openapi.json). |
+| Gateway, Order & Payment | `POST /api/payment-webhooks/simulator` | Accept authenticated, deduplicated callbacks. | `204` on success and identical replay; see [payments.v1.openapi.json](../contracts/http/payments.v1.openapi.json). |
 | Ticket, Notification & Reporting | `GET /health` | Ticketing health check. | `200` |
 
 ### Development-only internal operations
@@ -52,11 +54,8 @@ These routes are documented in the approved architecture and contract knowledge,
 | Booking Engine | `POST /api/holds` | Request an expiring, atomic seat hold. | Requires `Idempotency-Key`; returns `202 Accepted` and `request_id` only after durable append. |
 | Booking Engine | `GET /api/booking-requests/{requestId}` | Poll asynchronous hold processing. | Returns a result such as `HELD` or `REJECTED`; only `HELD` with `hold_id` and `expires_at` confirms a hold. |
 | Booking Engine | `GET /api/holds/{holdId}` | Read an existing hold. | Includes expiry time; a hold is normally valid for 10 minutes. |
-| Order & Payment | `POST /api/orders` | Create an order from an active hold. | Rejects expired or foreign holds; snapshots fares and passenger data. |
-| Order & Payment | `POST /api/payments/{orderId}/simulate` | Start a simulator payment scenario. | Supports success, failure, timeout, delayed success, and duplicate callback scenarios. |
-| Order & Payment | `POST /api/payment-webhooks/simulator` | Receive payment-simulator callback. | Signature authentication and provider-transaction deduplication are required. |
+| Order & Payment | `POST /api/orders` | Create an order from an active hold. | Rejects expired or foreign holds; snapshots fares and passenger data. Canonical schema: [orders.v1.openapi.json](../contracts/http/orders.v1.openapi.json). |
 | Order & Payment | `GET /api/orders/{orderId}` | Read order and payment status. | Includes lifecycle state such as `PENDING_PAYMENT`, `PAID`, or `PAYMENT_REVIEW`. |
-| Ticketing | `GET /api/tickets/{ticketId}` | Read authorized ticket metadata or resources. | Ticket issuance occurs after booking confirmation. |
 
 ## Shared conventions
 

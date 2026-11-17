@@ -10,5 +10,8 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/catalog/TetRail.Catalog.Tests.csproj" />
+    <Project Path="tests/order-payment/TetRail.OrderPayment.Tests.csproj" />
+    <Project Path="tests/ticketing/TetRail.Ticketing.Tests.csproj" />
+    <Project Path="tests/gateway/TetRail.Gateway.Tests.csproj" />
   </Folder>
 </Solution>

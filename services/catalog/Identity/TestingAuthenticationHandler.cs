@@ -14,7 +14,7 @@ public sealed class TestingAuthenticationHandler(IOptionsMonitor<AuthenticationS
         if (string.IsNullOrWhiteSpace(subject)) return Task.FromResult(AuthenticateResult.NoResult());
         var claims = new List<Claim> { new("sub", subject) };
         foreach (var role in Request.Headers["X-Test-Role"].ToString().Split(',', StringSplitOptions.RemoveEmptyEntries)) claims.Add(new Claim("cognito:groups", role));
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, "Testing")), "Testing")));
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, "Testing", "sub", "cognito:groups")), "Testing")));
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)

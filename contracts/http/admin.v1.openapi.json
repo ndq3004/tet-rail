@@ -1,0 +1,56 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail administration", "version": "v1" },
+  "security": [{ "bearer": [] }],
+  "paths": {
+    "/api/v1/admin/catalog/{resource}": {
+      "parameters": [{ "$ref": "#/components/parameters/Resource" }],
+      "get": {
+        "parameters": [{ "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0 } }],
+        "responses": { "200": { "description": "Up to 100 catalog entries" }, "403": { "description": "Admin role required" } }
+      }
+    },
+    "/api/v1/admin/catalog/{resource}/{id}": {
+      "parameters": [{ "$ref": "#/components/parameters/Resource" }, { "$ref": "#/components/parameters/Id" }],
+      "put": {
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Stored row" }, "400": { "description": "Invalid resource fields" }, "403": { "description": "Admin role required" }, "409": { "description": "Reference or uniqueness conflict" } }
+      },
+      "delete": {
+        "responses": { "204": { "description": "Deleted row" }, "403": { "description": "Admin role required" }, "404": { "description": "Unknown row" }, "409": { "description": "Row is referenced" } }
+      }
+    },
+    "/api/v1/admin/catalog/trips/{id}/schedule": {
+      "parameters": [{ "$ref": "#/components/parameters/Id" }],
+      "put": {
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["stops", "seatIds"],
+          "properties": {
+            "seatIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+            "stops": { "type": "array", "items": {
+              "type": "object", "required": ["routeStopId", "arrivalAt", "departureAt"],
+              "properties": {
+                "routeStopId": { "type": "string", "format": "uuid" },
+                "arrivalAt": { "type": "string", "format": "date-time" },
+                "departureAt": { "type": "string", "format": "date-time" }
+              }
+            } }
+          }
+        } } } },
+        "responses": { "204": { "description": "Schedule replaced and seats assigned additively" }, "400": { "description": "Invalid schedule" }, "403": { "description": "Admin role required" }, "404": { "description": "Unknown trip" }, "409": { "description": "Unknown seat" } }
+      }
+    },
+    "/api/v1/admin/reports/overview": {
+      "get": {
+        "responses": { "200": { "description": "Sales, conversion, payment, checkout latency, occupied segments, reporting lag, dead letters, Gateway pressure, and optional Booking pressure including logicalActiveHolds" }, "403": { "description": "Admin role required" }, "503": { "description": "Upstream unavailable" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } },
+    "parameters": {
+      "Resource": { "name": "resource", "in": "path", "required": true, "schema": { "type": "string", "enum": ["stations", "routes", "trips", "route_stops", "carriages", "seats", "fares"] } },
+      "Id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+    }
+  }
+}

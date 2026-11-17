@@ -1,0 +1,60 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail Simulator Payments", "version": "v1" },
+  "paths": {
+    "/api/payments/{orderId}/simulate": {
+      "post": {
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["scenario"],
+          "properties": { "scenario": { "type": "string", "enum": ["success", "failure", "timeout", "delayed_success", "duplicate_callback"] } }
+        } } } },
+        "responses": {
+          "202": { "description": "Durably scheduled attempt. An identical retry returns the same attempt.", "content": { "application/json": { "schema": {
+            "type": "object", "required": ["provider_transaction_id", "due_at", "scenario"],
+            "properties": {
+              "provider_transaction_id": { "type": "string", "format": "uuid" },
+              "due_at": { "type": "string", "format": "date-time" },
+              "scenario": { "type": "string" }
+            }
+          } } } },
+          "400": { "description": "Invalid key or scenario" },
+          "401": { "description": "Customer authentication required" },
+          "404": { "description": "Unknown or foreign order" },
+          "409": { "description": "Order is no longer payable or already has a different attempt" },
+          "503": { "description": "Simulator unavailable" }
+        }
+      }
+    },
+    "/api/payment-webhooks/simulator": {
+      "post": {
+        "security": [{ "signature": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["provider_transaction_id", "order_id", "outcome"],
+          "properties": {
+            "provider_transaction_id": { "type": "string", "format": "uuid" },
+            "order_id": { "type": "string", "format": "uuid" },
+            "outcome": { "type": "string", "enum": ["success", "failure"] }
+          }
+        } } } },
+        "responses": {
+          "204": { "description": "Callback persisted or identical outcome already received" },
+          "400": { "description": "Invalid signed payload" },
+          "401": { "description": "Invalid or missing signature" },
+          "404": { "description": "Unknown order and transaction pair" },
+          "409": { "description": "Conflicting outcome or early delayed callback" },
+          "413": { "description": "Body exceeds 4096 bytes" },
+          "503": { "description": "Simulator unavailable" }
+        }
+      }
+    }
+  },
+  "components": { "securitySchemes": {
+    "bearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" },
+    "signature": { "type": "apiKey", "in": "header", "name": "X-Simulator-Signature", "description": "Hex-encoded HMAC-SHA256 over the exact request body bytes." }
+  } }
+}

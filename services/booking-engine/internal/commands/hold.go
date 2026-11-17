@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"sort"
 	"time"
 
@@ -69,9 +68,7 @@ func (c HoldRequestedV1) Shard() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(key))
-	return int(h.Sum32() % MappingPartitionsV1), nil
+	return shardForKey([]byte(key)), nil
 }
 
 type Publisher interface {
@@ -80,7 +77,7 @@ type Publisher interface {
 type KafkaPublisher struct{ writer *kafka.Writer }
 
 func NewKafkaPublisher(brokers []string) *KafkaPublisher {
-	return &KafkaPublisher{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: TopicV1, RequiredAcks: kafka.RequireAll, Async: false, Balancer: &kafka.Hash{}}}
+	return &KafkaPublisher{writer: &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: TopicV1, RequiredAcks: kafka.RequireAll, Async: false, Balancer: shardBalancer{}}}
 }
 func (p *KafkaPublisher) Publish(ctx context.Context, command HoldRequestedV1) error {
 	keys, err := command.ShardKeys()
@@ -95,43 +92,17 @@ func (p *KafkaPublisher) Publish(ctx context.Context, command HoldRequestedV1) e
 	// Its worker owns the saga and records compensation durably before reporting a result.
 	return p.writer.WriteMessages(ctx, kafka.Message{Key: []byte(keys[0]), Value: body})
 }
-func (p *KafkaPublisher) Close() error { return p.writer.Close() }
+func (p *KafkaPublisher) Stats() kafka.WriterStats { return p.writer.Stats() }
+func (p *KafkaPublisher) Close() error             { return p.writer.Close() }
 
-type Handler interface {
-	Handle(context.Context, HoldRequestedV1) error
-}
-type Consumer struct {
-	reader  *kafka.Reader
-	handler Handler
+func shardForKey(key []byte) int {
+	hash := fnv.New32a()
+	_, _ = hash.Write(key)
+	return int(hash.Sum32() % MappingPartitionsV1)
 }
 
-func NewConsumer(brokers []string, handler Handler) *Consumer {
-	return &Consumer{reader: kafka.NewReader(kafka.ReaderConfig{Brokers: brokers, Topic: TopicV1, GroupID: "booking-hold-worker-v1", MinBytes: 1, MaxBytes: 10e6}), handler: handler}
+type shardBalancer struct{}
+
+func (shardBalancer) Balance(message kafka.Message, _ ...int) int {
+	return shardForKey(message.Key)
 }
-func (c *Consumer) Run(ctx context.Context) error {
-	for {
-		message, err := c.reader.FetchMessage(ctx)
-		if err != nil {
-			if err == io.EOF {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(250 * time.Millisecond):
-					continue
-				}
-			}
-			return err
-		}
-		var command HoldRequestedV1
-		if err = json.Unmarshal(message.Value, &command); err == nil {
-			err = c.handler.Handle(ctx, command)
-		}
-		if err != nil {
-			return err
-		}
-		if err = c.reader.CommitMessages(ctx, message); err != nil {
-			return err
-		}
-	}
-}
-func (c *Consumer) Close() error { return c.reader.Close() }

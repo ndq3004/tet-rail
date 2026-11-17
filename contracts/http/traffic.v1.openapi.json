@@ -1,0 +1,19 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail traffic control", "version": "v1" },
+  "paths": {
+    "/api/v1/waiting-room/admission": {
+      "post": {
+        "security": [{ "bearer": [] }],
+        "responses": {
+          "200": { "description": "A single-use admissionToken and expiresIn in seconds. Present the grant in X-Admission-Token on POST /api/holds." },
+          "202": { "description": "Queued with one-based position", "headers": { "Retry-After": { "schema": { "type": "integer" } } } },
+          "401": { "description": "Authentication required" },
+          "429": { "description": "Rate limit or queue capacity exceeded", "headers": { "Retry-After": { "schema": { "type": "integer" } } } },
+          "503": { "description": "Queue store unavailable" }
+        }
+      }
+    }
+  },
+  "components": { "securitySchemes": { "bearer": { "type": "http", "scheme": "bearer" } } }
+}

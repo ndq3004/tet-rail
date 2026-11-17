@@ -3,7 +3,6 @@ package transport
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +16,7 @@ import (
 type fakeHoldService struct {
 	segments []holds.Segment
 	err      error
+	owner    string
 }
 
 func (f *fakeHoldService) Submit(_ context.Context, _, _, _ string, _ time.Time, segments []holds.Segment) (commands.Result, error) {
@@ -24,10 +24,28 @@ func (f *fakeHoldService) Submit(_ context.Context, _, _, _ string, _ time.Time,
 	return commands.Result{RequestID: "request-1", Status: "QUEUED"}, f.err
 }
 func (f *fakeHoldService) Get(context.Context, string) (commands.Result, error) {
-	return commands.Result{}, errors.New("not found")
+	return commands.Result{OwnerID: f.owner, Status: "HELD"}, nil
 }
 func (f *fakeHoldService) GetHold(context.Context, string) (holds.Hold, error) {
-	return holds.Hold{}, errors.New("not found")
+	return holds.Hold{OwnerID: f.owner, State: "ACTIVE"}, nil
+}
+
+func TestBookingLookupsRequireOwnership(t *testing.T) {
+	handler := NewHandler(&fakeHoldService{owner: "customer"})
+	for _, path := range []string{"/api/holds/id", "/api/booking-requests/id"} {
+		for _, tc := range []struct {
+			owner  string
+			status int
+		}{{"", 404}, {"other", 404}, {"customer", 200}} {
+			request := httptest.NewRequest(http.MethodGet, path, nil)
+			request.Header.Set("X-User-Id", tc.owner)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tc.status {
+				t.Errorf("lookup %s as %q returned %d, want %d", path, tc.owner, response.Code, tc.status)
+			}
+		}
+	}
 }
 
 func TestHealth(t *testing.T) {

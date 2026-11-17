@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/tetrail/train-ticket-online/services/booking-engine/internal/commands"
 	"github.com/tetrail/train-ticket-online/services/booking-engine/internal/holds"
-	"net/http"
-	"time"
 )
 
 type holdService interface {
@@ -55,8 +57,13 @@ func getDiagnosticHold(s holdService) http.HandlerFunc {
 }
 func getHold(s holdService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		owner := r.Header.Get("X-User-Id")
+		if owner == "" {
+			http.NotFound(w, r)
+			return
+		}
 		result, err := s.GetHold(r.Context(), r.PathValue("id"))
-		if err != nil {
+		if err != nil || !strings.EqualFold(result.OwnerID, owner) {
 			http.NotFound(w, r)
 			return
 		}
@@ -89,7 +96,7 @@ func postHold(s holdService) http.HandlerFunc {
 				http.Error(w, "idempotency key was used with a different request", http.StatusConflict)
 				return
 			}
-			http.Error(w, err.Error(), 409)
+			http.Error(w, "hold submission unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -99,11 +106,17 @@ func postHold(s holdService) http.HandlerFunc {
 }
 func getRequest(s holdService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		out, err := s.Get(r.Context(), r.PathValue("id"))
-		if err != nil {
+		owner := r.Header.Get("X-User-Id")
+		if owner == "" {
 			http.NotFound(w, r)
 			return
 		}
+		out, err := s.Get(r.Context(), r.PathValue("id"))
+		if err != nil || !strings.EqualFold(out.OwnerID, owner) {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(out)
 	}
 }

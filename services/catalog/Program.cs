@@ -84,6 +84,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapCatalogAdmin();
 app.MapGet("/health", () => Results.Ok(new { service = "catalog", status = "healthy" }));
 
 app.MapGet("/api/v1/identity/me", [Authorize] (ClaimsPrincipal user) => Results.Ok(new CurrentIdentity(user.FindFirstValue("sub")!, user.FindAll(cognito.GroupClaimType).SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray())));

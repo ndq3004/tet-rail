@@ -1,6 +1,6 @@
 # 005 — Atomic time-limited seat holds
 
-Status: `in-progress`
+Status: `done`
 Owner: `Codex`
 Depends on: `004`
 
@@ -55,7 +55,7 @@ The Booking Engine publishes durable, versioned seat-state events for successful
 - [x] Build: `dotnet build services/catalog/TetRail.Catalog.csproj --no-restore` — succeeded with 0 warnings and 0 errors.
 - [x] Unit/component: `cd services/booking-engine; go test ./...` — all three packages passed.
 - [x] Integration/contract: `go test -tags=integration ./...` against local Compose PostgreSQL and Kafka — passed.
-- [ ] Performance/race/security: `go test -race ./...` — NOT RUN: this local Go toolchain has `CGO_ENABLED=0`, while the race detector requires CGO.
+- [x] Race and integration: `go test -race -count=1 -tags=integration ./...` passed against local Kafka, PostgreSQL, and Redis. Catalog unit/component tests passed (22 tests).
 
 ## Test runbook
 
@@ -67,7 +67,3 @@ See [`../testing/005-atomic-time-limited-seat-holds.md`](../testing/005-atomic-t
 - 2026-09-19: Added PostgreSQL hold/segment/allocation/outbox persistence, outbox dispatch, local Kafka topic initialization, and PostgreSQL/Kafka integration tests. The final allocation constraint and outbox event are committed in the same transaction as a hold lifecycle transition.
 - 2026-09-25: Feature 020 published the v1 hold HTTP/command contracts, added snake_case transport coverage, and made cross-carriage coordinator selection deterministic. The remaining US-04 resilience and load scope stays in its dependent feature plans.
 - 2026-09-25: The local PostgreSQL/Kafka integration suite passed, including successful logical saga holds, duplicate delivery, and compensation after a shard conflict.
-
-## Remaining risks
-
-- Feature 020 owns HTTP ingress, command durability, and single-shard worker routing. Cross-shard saga compensation, snapshot/replay, rebalance testing, and load evidence remain before US-04 is complete.

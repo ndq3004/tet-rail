@@ -1,0 +1,19 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "TetRail Orders API", "version": "v1" },
+  "paths": {
+    "/api/orders": {
+      "post": {
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateOrder" } } } },
+        "responses": { "201": { "description": "PENDING_PAYMENT order created" }, "400": { "description": "Invalid order request" }, "404": { "description": "Active owned hold not found" }, "409": { "description": "Idempotency conflict" }, "503": { "description": "Booking lookup unavailable" } }
+      }
+    },
+    "/api/orders/{orderId}": { "get": { "parameters": [{ "name": "orderId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }], "responses": { "200": { "description": "Owned order" }, "404": { "description": "Unknown or foreign order" } } } }
+  },
+  "components": { "schemas": {
+    "CreateOrder": { "type": "object", "required": ["hold_id", "passengers", "fare"], "properties": { "hold_id": { "type": "string", "format": "uuid" }, "passengers": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/components/schemas/PassengerSnapshot" } }, "fare": { "$ref": "#/components/schemas/FareSnapshot" } }, "additionalProperties": false },
+    "PassengerSnapshot": { "type": "object", "required": ["passenger_id", "full_name", "date_of_birth"], "properties": { "passenger_id": { "type": "string", "format": "uuid" }, "full_name": { "type": "string", "maxLength": 200 }, "date_of_birth": { "type": "string", "format": "date" } } },
+    "FareSnapshot": { "type": "object", "required": ["seat_class", "price", "currency", "fare_version"], "properties": { "seat_class": { "type": "string" }, "price": { "type": "number", "minimum": 0 }, "currency": { "type": "string", "minLength": 3, "maxLength": 3 }, "fare_version": { "type": "integer", "minimum": 1 } } }
+  } }
+}

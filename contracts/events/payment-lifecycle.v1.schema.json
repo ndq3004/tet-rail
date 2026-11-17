@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TetRail payment lifecycle v1",
+  "allOf": [{ "$ref": "event-envelope.v1.schema.json" }],
+  "type": "object",
+  "properties": {
+    "event_type": { "enum": ["PaymentAuthorized.v1", "BookingConfirmed.v1", "BookingConfirmationFailed.v1", "PaymentSucceeded.v1", "PaymentFailed.v1", "OrderExpired.v1", "LatePaymentReceived.v1", "PaymentReviewRequired.v1"] },
+    "version": { "const": 1 },
+    "payload": {
+      "type": "object",
+      "required": ["order_id", "hold_id", "owner_id", "provider_transaction_id", "payment_expires_at"],
+      "properties": {
+        "order_id": { "type": "string", "format": "uuid" },
+        "hold_id": { "type": "string", "format": "uuid" },
+        "owner_id": { "type": "string", "format": "uuid" },
+        "provider_transaction_id": { "type": "string", "format": "uuid" },
+        "payment_expires_at": { "type": "string", "format": "date-time" },
+        "provider": { "const": "simulator" },
+        "compensation_required": { "type": "boolean" }
+      }
+    }
+  }
+}

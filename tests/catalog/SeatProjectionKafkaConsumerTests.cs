@@ -7,10 +7,14 @@ namespace TetRail.Catalog.Tests;
 
 public sealed class SeatProjectionKafkaConsumerTests
 {
-    [Fact]
-    public async Task ConsumeOneAsync_applies_then_commits_offset()
+    [Theory]
+    [InlineData(BookingStateEventTypes.SeatHeld)]
+    [InlineData(BookingStateEventTypes.HoldExpired)]
+    public async Task ConsumeOneAsync_applies_then_commits_offset(string eventType)
     {
-        var client = new FakeKafkaClient(ValidRecord());
+        var record = ValidRecord();
+        var body = System.Text.Encoding.UTF8.GetString(record.Value).Replace(BookingStateEventTypes.SeatHeld, eventType);
+        var client = new FakeKafkaClient(record with { Value = System.Text.Encoding.UTF8.GetBytes(body) });
         var applier = new FakeApplier(client.Operations);
         var consumer = CreateConsumer(client, applier);
 

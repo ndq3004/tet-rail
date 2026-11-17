@@ -6,6 +6,11 @@ The Booking Engine exposes `POST /api/holds`, `GET /api/booking-requests/{reques
 
 ## Scope and prerequisites
 
+- Public booking requests go through the Gateway using a bearer token. The Gateway supplies the authenticated owner for submission and polling. Direct local Booking Engine requests in this runbook supply the trusted development owner header; use the same owner for both the submission and its lookups.
+
+- Set `REDIS_URL` to enable shard snapshots. If a valid snapshot is unavailable, the worker replays from the earliest retained Kafka offset. PostgreSQL assigns each partition a new epoch and checks it in the transaction that applies a command.
+- Run `go test -race -count=1 -tags=integration ./...` from the Booking Engine directory with local PostgreSQL, Kafka, and Redis available. The command tests cover concurrent retry during an ambiguous Kafka acknowledgement, stale-owner rejection, worker restart, and compensation after a conflicting segment.
+
 - Run from the repository root in PowerShell.
 - Docker Desktop must be running.
 - Go 1.24+ and .NET SDK 9 must be installed.
@@ -41,7 +46,7 @@ With Booking Engine running on port 8080, run the reproducible k6 workload from 
 k6 run -e VUS=20 -e DURATION=30s -e HOT_SEAT_RATIO=0.8 tests/load/booking-holds-hot-seat.js
 ```
 
-Record VUs, duration, payload shape, 12-partition configuration, hot-seat ratio, accepted/rejected ratio, acknowledgement latency, worker lag, and queue-drain time. This workload is evidence only after the HTTP endpoint and worker are running against the local Kafka/PostgreSQL platform.
+Set `RUN_ID` when correlating an execution externally; otherwise the workload generates a unique run prefix for every invocation. It reports `hold_commands_accepted`, `hold_commands_rejected`, and `hold_commands_unexpected` separately. Record VUs, duration, payload shape, 12-partition configuration, hot-seat ratio, accepted/rejected ratio, acknowledgement latency, worker lag, and queue-drain time. This workload is evidence only after the HTTP endpoint and worker are running against the local Kafka/PostgreSQL platform.
 
 ## Development Kafka diagnostic endpoint
 
@@ -117,7 +122,7 @@ Kafka receives a JSON `HoldRequested.v1` command keyed by `trip_id:carriage_id`.
 ```powershell
 docker exec tetrail-kafka-1 /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic booking.hold-commands.v1 --from-beginning --property print.key=true --property key.separator=" | " --timeout-ms 5000
 
-Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)"
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)" -Headers $headers
 ```
 
 Expected Kafka shape (the values are generated):
@@ -129,8 +134,8 @@ Expected Kafka shape (the values are generated):
 Poll until the response is `HELD` with `hold_id` and `expires_at`, or `REJECTED`. For a successful result, inspect the authoritative hold:
 
 ```powershell
-$result = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)"
-Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/holds/$($result.hold_id)"
+$result = Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/booking-requests/$($accepted.request_id)" -Headers $headers
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/holds/$($result.hold_id)" -Headers $headers
 ```
 
 Repeat the identical request body and `Idempotency-Key`: it must return the original `request_id`. Change the body while keeping the key: it must return `409 Conflict`.
